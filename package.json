@@ -1,0 +1,15 @@
+{
+  "name": "fenwick",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mochi, an autonomous owl who lives in a small town on your network.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "start": "node src/start.ts",
+    "world": "node src/world/index.ts",
+    "brain": "node src/brain/index.ts"
+  }
+}

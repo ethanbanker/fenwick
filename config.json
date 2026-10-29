@@ -1,0 +1,49 @@
+{
+  "port": 4321,
+  "host": "0.0.0.0",
+  "creature": {
+    "name": "Mochi",
+    "species": "owl",
+    "pronouns": "he"
+  },
+  "town": {
+    "name": "Fenwick"
+  },
+  "sim": {
+    "tickHz": 20,
+    "dayLengthMinutes": 60,
+    "seed": 1337
+  },
+  "brain": {
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "fastModel": "gemini-2.5-flash-lite",
+    "visionModel": "gemini-2.5-flash",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+    "temperature": 1,
+    "heartbeatMinMs": 4000,
+    "heartbeatMaxMs": 15000,
+    "maxCallsPerDay": 350,
+    "minSecondsBetweenCalls": 6,
+    "reserveCalls": 40
+  },
+  "memory": {
+    "slotsPerSection": 24,
+    "halfLifeDays": 21,
+    "subjectCeiling": 4,
+    "pairCeiling": 2,
+    "logRetentionDays": 7
+  },
+  "offerings": {
+    "perDayLimit": 3,
+    "spawnRadiusTiles": 9,
+    "senseRadiusTiles": 3
+  },
+  "browse": {
+    "enabled": true,
+    "allowSearch": true,
+    "maxFetchesPerSession": 3,
+    "timeoutMs": 12000,
+    "maxBytes": 400000
+  }
+}
