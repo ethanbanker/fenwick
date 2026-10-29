@@ -41,18 +41,17 @@ say "downloaded ${BRANCH}"
 
 mkdir -p "$DEST"
 
-# copy the code over the old code, but never over his life or your settings.
+# Copy the code over the old code, but never over his life or your settings.
 # tar pipe rather than rsync so this does not need another package.
+#
+# config.json is only protected if it already exists — excluding it on a first
+# install would leave him with no config at all.
+excludes=(--exclude=./data --exclude=./.env --exclude=./.git --exclude=./.DS_Store)
 if [ -d "$DEST/src" ]; then
+  excludes+=(--exclude=./config.json)
   say "updating in place — keeping data/, .env, config.json"
 fi
-( cd "$src" && tar -cf - \
-    --exclude='./data' \
-    --exclude='./.env' \
-    --exclude='./config.json' \
-    --exclude='./.git' \
-    --exclude='./.DS_Store' \
-    . ) | tar -xf - -C "$DEST"
+( cd "$src" && tar -cf - "${excludes[@]}" . ) | tar -xf - -C "$DEST"
 
 chmod +x "$DEST/deploy/install.sh" "$DEST/deploy/deploy.sh" 2>/dev/null || true
 
