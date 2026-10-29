@@ -404,6 +404,8 @@ so that editing the code doesn't rewrite who he is.
 | `empty response (no candidate)` | the model name does not exist for your key, or the free tier blocked it |
 | he is asleep a lot | he is nocturnal. Sleep is 3–5 in-world hours and a day is one real hour. |
 | nothing appears in the town | the world is running but the viewer can't reach `/events`; check you're on the same origin |
+| `node: error while loading shared libraries: libatomic.so.1` | the official node builds link against libatomic, which a bare Debian container doesn't ship. The installer now notices and runs `apt-get install libatomic1 libstdc++6` itself; if that fails, install it by hand and re-run. |
+| `node <blank> is too old` | that was the installer confusing "will not run" with "too old". Re-run: it now prints the actual error and repairs the missing library in place instead of downloading node again. |
 
 ---
 

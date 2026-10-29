@@ -45,10 +45,60 @@ fi
 # 1. Node. Must be >= 22.6, because that is when node started running
 #    TypeScript without a build step — and this project has no build step.
 # ---------------------------------------------------------------------------
+# prints the version when the binary actually runs, and fails when it does not.
+# "runs" and "is new enough" are different questions and used to be conflated:
+# a node missing a shared library reported its version as empty and looked old.
+node_version() {
+  local bin=$1 v
+  [ -x "$bin" ] || return 1
+  v=$("$bin" -v 2>/dev/null) || return 1
+  printf '%s\n' "$v"
+}
+
+# the one line of stderr explaining why it will not run
+node_problem() {
+  local bin=$1 err first
+  err=$("$bin" -v 2>&1 >/dev/null) || true
+  first=${err%%$'\n'*}
+  printf '%s\n' "${first:-it would not run at all}"
+}
+
+# The official node builds link against libatomic and libstdc++. A minimal debian
+# container has neither, so node unpacks, symlinks, then dies on startup — which
+# is exactly how the first real Proxmox install failed.
+node_needs_runtime_libs() {
+  local msg
+  msg=$("$1" -v 2>&1) && return 1
+  case $msg in
+    *"error while loading shared libraries"* | *"cannot open shared object"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+provide_node_runtime() {
+  local bin=$1
+  node_needs_runtime_libs "$bin" || return 0
+  say "node needs system libraries that are missing here"
+  if command -v apt-get >/dev/null 2>&1; then
+    $SUDO apt-get update -qq || true
+    $SUDO apt-get install -y -qq libatomic1 libstdc++6 >/dev/null || return 1
+    say "installed libatomic1 and libstdc++6"
+  elif command -v dnf >/dev/null 2>&1; then
+    $SUDO dnf install -y libatomic libstdc++ >/dev/null || return 1
+    say "installed libatomic and libstdc++"
+  elif command -v apk >/dev/null 2>&1; then
+    $SUDO apk add --no-cache libatomic libstdc++ >/dev/null || return 1
+    say "installed libatomic and libstdc++"
+  else
+    return 1
+  fi
+  node_needs_runtime_libs "$bin" && return 1
+  return 0
+}
+
 node_is_new_enough() {
   local bin=$1 v major rest minor
-  command -v "$bin" >/dev/null 2>&1 || return 1
-  v=$("$bin" -v 2>/dev/null) || return 1
+  v=$(node_version "$bin") || return 1
   v=${v#v}
   case $v in [0-9]*) ;; *) return 1 ;; esac
   major=${v%%.*}
@@ -105,7 +155,12 @@ install_node() {
     warn "node was unpacked but nothing runnable was found — see ${INSTALL_PREFIX}"
     exit 1
   }
-  say "node $("$NODE_BIN" -v) installed at $NODE_BIN"
+  provide_node_runtime "$NODE_BIN" || {
+    warn "node ${version} will not run: $(node_problem "$NODE_BIN")"
+    warn "install the missing library by hand (libatomic1 on debian) and re-run."
+    exit 1
+  }
+  say "node $(node_version "$NODE_BIN") installed at $NODE_BIN"
 }
 
 # Keep the resolved node in one place. Never trust PATH: inside a freshly created
@@ -153,11 +208,23 @@ require_node() {
 step "node"
 # look for node on disk before asking PATH, so a copy installed by an earlier
 # run is found even if this shell's PATH does not include it
+if find_node; then
+  # a node unpacked by an earlier run may simply be missing libraries; fix that
+  # in place rather than downloading the whole tarball again
+  if ! node_is_new_enough "$NODE_BIN"; then
+    provide_node_runtime "$NODE_BIN" || true
+  fi
+fi
+
 if find_node && node_is_new_enough "$NODE_BIN"; then
-  say "node $("$NODE_BIN" -v) — fine"
+  say "node $(node_version "$NODE_BIN") — fine"
 else
   if [ -n "${NODE_BIN:-}" ]; then
-    say "node $("$NODE_BIN" -v) is too old (needs ${MIN_MAJOR}.${MIN_MINOR}+)"
+    if v=$(node_version "$NODE_BIN"); then
+      say "node $v is too old (needs ${MIN_MAJOR}.${MIN_MINOR}+)"
+    else
+      warn "the node at $NODE_BIN will not run: $(node_problem "$NODE_BIN")"
+    fi
   elif command -v node >/dev/null 2>&1; then
     say "node $(node -v) is too old (needs ${MIN_MAJOR}.${MIN_MINOR}+)"
   else
@@ -166,7 +233,7 @@ else
   install_node
   require_node
   node_is_new_enough "$NODE_BIN" || {
-    warn "node $("$NODE_BIN" -v 2>/dev/null) is too old, needs ${MIN_MAJOR}.${MIN_MINOR}+"
+    warn "node at $NODE_BIN still will not run: $(node_problem "$NODE_BIN")"
     exit 1
   }
 fi
