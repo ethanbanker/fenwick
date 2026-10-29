@@ -100,22 +100,79 @@ install_node() {
   $SUDO ln -sfn "$dir/bin/node" "$BIN_DIR/node"
   $SUDO ln -sfn "$dir/bin/npm" "$BIN_DIR/npm"
   $SUDO ln -sfn "$dir/bin/npx" "$BIN_DIR/npx"
+
+  find_node || {
+    warn "node was unpacked but nothing runnable was found — see ${INSTALL_PREFIX}"
+    exit 1
+  }
+  say "node $("$NODE_BIN" -v) installed at $NODE_BIN"
+}
+
+# Keep the resolved node in one place. Never trust PATH: inside a freshly created
+# container PATH can be trimmed, and then a perfectly good install looks like a
+# missing one (this actually happened on the first real deployment).
+find_node() {
+  NODE_BIN=""
+  local cand found
+
+  for cand in "$BIN_DIR/node" /usr/local/bin/node /usr/bin/node; do
+    if [ -x "$cand" ]; then NODE_BIN=$cand; break; fi
+  done
+
+  if [ -z "$NODE_BIN" ]; then
+    # the symlink did not resolve; find what the tarball actually produced
+    found=$(ls -d "$INSTALL_PREFIX"/node-v*/bin/node 2>/dev/null | head -1 || true)
+    if [ -n "$found" ]; then
+      $SUDO mkdir -p "$BIN_DIR" 2>/dev/null || true
+      $SUDO ln -sfn "$found" "$BIN_DIR/node" 2>/dev/null || true
+      [ -x "$BIN_DIR/node" ] && NODE_BIN="$BIN_DIR/node"
+    fi
+  fi
+
+  [ -n "$NODE_BIN" ] || return 1
+
+  # make it visible to anything this script shells out to later, and to the
+  # user's own shells
+  case ":$PATH:" in
+    *":$(dirname "$NODE_BIN"):"*) ;;
+    *) PATH="$(dirname "$NODE_BIN"):$PATH"; export PATH ;;
+  esac
   hash -r 2>/dev/null || true
-  say "node $(node -v) installed"
+  return 0
+}
+
+require_node() {
+  find_node && return 0
+  warn "node is on disk but will not run as ${BIN_DIR}/node:"
+  ls -l "$BIN_DIR/node" >&2 2>/dev/null || true
+  ls -l "$INSTALL_PREFIX"/node-v*/bin/node >&2 2>/dev/null || true
+  warn "remove ${INSTALL_PREFIX}/node-v* and re-run, or install node >= ${MIN_MAJOR}.${MIN_MINOR} yourself."
+  exit 1
 }
 
 step "node"
-if node_is_new_enough node; then
-  say "node $(node -v) — fine"
+# look for node on disk before asking PATH, so a copy installed by an earlier
+# run is found even if this shell's PATH does not include it
+if find_node && node_is_new_enough "$NODE_BIN"; then
+  say "node $("$NODE_BIN" -v) — fine"
 else
-  if command -v node >/dev/null 2>&1; then
+  if [ -n "${NODE_BIN:-}" ]; then
+    say "node $("$NODE_BIN" -v) is too old (needs ${MIN_MAJOR}.${MIN_MINOR}+)"
+  elif command -v node >/dev/null 2>&1; then
     say "node $(node -v) is too old (needs ${MIN_MAJOR}.${MIN_MINOR}+)"
   else
     say "no node found"
   fi
   install_node
-  node_is_new_enough node || { warn "node still not right after install; PATH may be shadowed. Try 'hash -r' or a new shell."; exit 1; }
+  require_node
+  node_is_new_enough "$NODE_BIN" || {
+    warn "node $("$NODE_BIN" -v 2>/dev/null) is too old, needs ${MIN_MAJOR}.${MIN_MINOR}+"
+    exit 1
+  }
 fi
+find_node
+# resolve node for the rest of the script even when it was already installed
+[ -n "${NODE_BIN:-}" ] && [ -x "$NODE_BIN" ] || link_node
 
 # ---------------------------------------------------------------------------
 # 2. His key.
@@ -144,8 +201,6 @@ PORT_RESOLVED=${PORT:-${PORT_RESOLVED:-4321}}
 # ---------------------------------------------------------------------------
 # 3. Keep him running.
 # ---------------------------------------------------------------------------
-NODE_BIN=$(command -v node)
-
 if ! command -v systemctl >/dev/null 2>&1; then
   step "no systemd here"
   say "starting him in the foreground instead. ctrl-c stops him."
@@ -200,7 +255,9 @@ if [ -z "$ok" ]; then
   exit 1
 fi
 
-lan=$(hostname -I 2>/dev/null | awk '{print $1}')
+# hostname -I is linux-only; under pipefail a failure here would kill the script
+# silently just before it prints the addresses
+lan=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
 say "alive on port ${PORT_RESOLVED}"
 printf '\n%s   the town:   http://%s:%s%s\n' "$bold" "${lan:-127.0.0.1}" "$PORT_RESOLVED" "$off"
 printf '%s   his mind:   http://%s:%s/mind%s\n' "$bold" "${lan:-127.0.0.1}" "$PORT_RESOLVED" "$off"

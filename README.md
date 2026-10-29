@@ -66,12 +66,21 @@ It asks for a Gemini key on the way. That is the only thing it needs from you, a
 leaving it blank is fine — he lives on reflexes until you add one, and it tells you how.
 
 `ct/fenwick.sh` runs on the host. `install/fenwick-install.sh` runs inside the container,
-then hands over to `deploy/install.sh`. Running the one command again makes a second one;
-to update an existing container, run the app installer inside it:
+then hands over to `deploy/install.sh`.
+
+Run the same command again and it notices the existing container and offers to **repair**
+it — reinstall the code and the service, keeping his life, your `.env` and your
+`config.json`. That is also the update path: paste, pick *repair*. To do it by hand inside
+the container:
 
 ```bash
-pct exec <ctid> -- bash /opt/fenwick/deploy/install.sh
+pct exec <ctid> -- env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  bash /opt/fenwick/deploy/install.sh
 ```
+
+The PATH is there because a bare `pct exec` shell can come up without `/usr/local/bin`,
+which makes a correctly installed Node look missing. The installer looks for Node on disk
+before consulting PATH, so it works either way.
 
 The container gets no sshd — use `pct exec`, or install one yourself if you want in.
 

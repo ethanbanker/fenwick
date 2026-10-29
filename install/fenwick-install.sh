@@ -80,4 +80,6 @@ step "install"
 rm -rf "$tmp"
 trap - EXIT
 cd "$DEST"
+# the PATH a 'pct exec' shell arrives with is not to be trusted here
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 exec bash "$DEST/deploy/install.sh"

@@ -237,7 +237,43 @@ install_inside() {
   fi
 
   echo
-  pct exec "$CTID" -- bash /root/fenwick-install.sh
+  # PATH is set explicitly: a bare 'pct exec' shell can come up with a trimmed
+  # PATH, and then a freshly installed node in /usr/local/bin is invisible.
+  pct exec "$CTID" -- env "PATH=$CT_PATH" bash /root/fenwick-install.sh
+}
+
+# is there already a fenwick container? used to offer a repair/update instead of
+# quietly creating a second one
+find_existing_ct() {
+  local conf dir
+  dir=${FENWICK_LXC_DIR:-/etc/pve/lxc}
+  for conf in "$dir"/*.conf; do
+    [ -f "$conf" ] || continue
+    if grep -qE "^hostname: ${DEFAULT_HOSTNAME}\$" "$conf" 2>/dev/null; then
+      basename "$conf" .conf
+      return 0
+    fi
+  done
+  return 1
+}
+
+# re-run the installer inside an existing container: code is refreshed from the
+# repo, data/ .env and config.json stay exactly as they are
+repair_inside() {
+  local script="/tmp/fenwick-install-$$.sh"
+  pct status "$CTID" >/dev/null 2>&1 || die "container $CTID does not exist"
+  pct status "$CTID" | grep -q running || {
+    info "starting container $CTID"
+    pct start "$CTID" >/dev/null 2>&1 || die "could not start $CTID"
+    sleep 2
+  }
+  curl -fsSL "${RAW}/install/fenwick-install.sh" -o "$script" ||
+    die "could not download install/fenwick-install.sh from github.com/$REPO"
+  pct push "$CTID" "$script" /root/fenwick-install.sh --perms 0700 >/dev/null ||
+    die "could not push the installer into $CTID"
+  rm -f "$script"
+  echo
+  pct exec "$CTID" -- env "PATH=$CT_PATH" bash /root/fenwick-install.sh
 }
 
 # ---------------------------------------------------------------------------
@@ -245,6 +281,38 @@ install_inside() {
 # ---------------------------------------------------------------------------
 banner
 require_host
+
+CT_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# An earlier run may have stopped halfway. Re-running the paste command should
+# fix that container, not build a second one next to it.
+EXISTING=$(find_existing_ct || true)
+if [ -n "$EXISTING" ]; then
+  CTID=$EXISTING
+  info "found an existing fenwick container ($EXISTING)"
+  ACTION=$(menu "Existing install" "Container $EXISTING is already here. What now?" \
+    "repair" "reinstall the code and service, keeping his life and your key" \
+    "new" "leave it alone and create a second container") || cancel
+  [ -n "$ACTION" ] || cancel
+
+  if [ "$ACTION" = "repair" ]; then
+    repair_inside
+    ct_ip=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}') || true
+    cat <<EOF
+
+${G}  ✓ Fenwick is up in container ${CTID}.${O}
+
+${B}  the town${O}     http://${ct_ip:-<container-ip>}:4321
+${B}  his mind${O}     http://${ct_ip:-<container-ip>}:4321/mind
+
+  watch him think   pct exec $CTID -- journalctl -u fenwick -f
+  update the code   pct exec $CTID -- env PATH=$CT_PATH bash /opt/fenwick/deploy/install.sh
+
+EOF
+    exit 0
+  fi
+  CTID=""
+fi
 
 MODE=$(menu "Setup" "Default settings, or choose your own?" \
   "default" "1 core · 1024 MB RAM · 8 GB disk · DHCP · next free CT ID" \
@@ -345,7 +413,7 @@ ${B}  offerings${O}    http://${ct_ip:-<container-ip>}:4321/offerings
 
   watch him think   pct exec $CTID -- journalctl -u fenwick -f
   restart           pct exec $CTID -- systemctl restart fenwick
-  update the code   pct exec $CTID -- bash /opt/fenwick/deploy/install.sh
+  update the code   pct exec $CTID -- env PATH=$CT_PATH bash /opt/fenwick/deploy/install.sh
   add a model key   pct exec $CTID -- nano /opt/fenwick/.env
                     pct exec $CTID -- systemctl restart fenwick
   his files         pct exec $CTID -- ls /opt/fenwick/data
