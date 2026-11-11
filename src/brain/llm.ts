@@ -120,6 +120,13 @@ export class Brain {
     return this.endpoints().some((e) => Boolean(e.apiKey));
   }
 
+  /** The endpoint that will actually serve the next call, including fallback. */
+  get activeLabel(): string {
+    const endpoint = this.endpoints().find((e) => e.apiKey);
+    if (!endpoint) return 'reflex only';
+    return `${endpoint.label}/${this.modelFor('fast', endpoint)}`;
+  }
+
   /** True while he is sitting out a rate limit; no point calling the model. */
   get coolingDown(): boolean {
     return Date.now() < this.disabledUntil;

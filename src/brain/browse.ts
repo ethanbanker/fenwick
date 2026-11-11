@@ -235,6 +235,7 @@ export async function browseSession(args: {
       '',
       'Reply with JSON only:',
       '{"summary":"one or two flat sentences about what this page actually is","opinion":-1..1,"tags":["2-4 single word topics"],"quote":"a short phrase from the page worth keeping, verbatim","stayed":true}',
+      'Name at least one concrete thing from the page: a person, place, number, claim, or phrase. Do not answer with only "nothing much".',
       'opinion is how you felt about it: negative means you wished you had not opened it.',
     ].join('\n'),
     model: 'fast',
@@ -244,12 +245,22 @@ export async function browseSession(args: {
   });
 
   const r = reaction.data;
+  const summary = String(r?.summary ?? '').trim();
+  const thin = /^(a page with nothing much on it|nothing much( to read)?|nothing to read|no content)\.?$/i.test(summary);
+  if (!reaction.ok || !r || summary.length < 12 || thin) {
+    return {
+      ok: false,
+      tried,
+      reading: null,
+      error: 'the page could not be turned into a reading',
+    };
+  }
   const reading: Reading = {
     at: Date.now(),
     day,
     url: page.url,
     title: page.title.slice(0, 160),
-    summary: String(r?.summary ?? '').slice(0, 400) || 'a page with nothing much on it',
+    summary: summary.slice(0, 400),
     opinion: typeof r?.opinion === 'number' ? Math.max(-1, Math.min(1, r.opinion)) : 0,
     tags: Array.isArray(r?.tags) ? r.tags.slice(0, 5).map((t) => String(t).toLowerCase().slice(0, 24)) : [],
     quote: String(r?.quote ?? '').slice(0, 240),

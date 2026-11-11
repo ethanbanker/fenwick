@@ -460,6 +460,11 @@ async function handleFinished(obs: Observation): Promise<void> {
   appendLog(cfg, obs.day, `[${obs.time}] finished ${finished.id}${finished.args?.place ? ` at ${finished.args.place}` : ''}`);
 
   if (finished.id === 'browse' && cfg.browse.enabled) {
+    if (!brain.keyPresent || brain.report().exhausted || brain.coolingDown) {
+      log('skipped browsing: no model room to read it back');
+      appendLog(cfg, obs.day, `[${obs.time}] skipped browsing: no model room`);
+      return;
+    }
     log('he is browsing the internet');
     const outcome = await browseSession({ cfg, brain, day: obs.day, personaBrief: brief(), memoryDigest: memory.digest(obs.day, 12) });
     if (outcome.reading) {
@@ -507,6 +512,13 @@ async function beat(): Promise<void> {
   if (!obs) {
     heartbeat = Math.max(heartbeat, 5000);
     return;
+  }
+
+  // A browse action needs the model twice: once to choose a query and once to
+  // react to the page. Without model room it becomes a fetch that cannot be
+  // turned into a thought, so do not offer it to the reflex brain at all.
+  if (obs.available && (!brain.keyPresent || brain.report().exhausted || brain.coolingDown)) {
+    obs.available = obs.available.filter((o) => o.id !== 'browse');
   }
 
   if (firstBeat) {
@@ -621,8 +633,9 @@ function adapt(obs: Observation, waiting: boolean): void {
 
 async function main(): Promise<void> {
   const backup = cfg.brain.fallback.apiKey ? `${cfg.brain.fallback.provider}/${cfg.brain.fallback.model}` : 'none';
+  const primaryKey = cfg.brain.apiKey ? '' : ' (no key)';
   log(
-    `starting. provider=${cfg.brain.provider} model=${cfg.brain.model} fallback=${backup} budget=${cfg.brain.maxCallsPerDay}/day`,
+    `starting. configured=${cfg.brain.provider}/${cfg.brain.model}${primaryKey} active=${brain.activeLabel} fallback=${backup} budget=${cfg.brain.maxCallsPerDay}/day`,
   );
   if (!brain.keyPresent) {
     log('no API key found. He will live on reflexes until you add one to .env (see README).');
