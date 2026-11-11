@@ -227,7 +227,7 @@ when it runs out he drops to reflexes until the counter resets. Details under
 
 | page | what it is |
 |---|---|
-| `/` | the town, first person. You walk in at the fountain with no avatar in the way. **WASD**, **shift** to run, click for the mouse (esc lets go), drag to look without capture. The renderer is Three.js at a deliberately low internal resolution, forced through an ordered-dither palette. A renderer only — it holds no state and cannot change anything about him. |
+| `/` | the town, first person. You walk in at the fountain with no avatar in the way. **WASD**, **shift** to run, click for the mouse (esc lets go), drag to look without capture. The renderer is Three.js at a deliberately low internal resolution, forced through an ordered-dither palette. The sun, moon, stars and lamps follow your device's real local clock, while the simulation keeps its own accelerated day. A renderer only — it holds no state and cannot change anything about him. |
 | `/walk` | alias for `/`. |
 | `/map` | the old isometric map, for a quick overview. Also a renderer only. |
 | `/diary` | what he wrote down himself, unedited. He writes at the end of each in-world day, and sometimes mid-day when a day gets heavy. |

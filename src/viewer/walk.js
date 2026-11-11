@@ -73,7 +73,7 @@ import * as THREE from '/vendor/three.module.min.js';
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.18;
+  renderer.toneMappingExposure = 1.06;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor(0x0b0f10, 1);
@@ -321,12 +321,12 @@ import * as THREE from '/vendor/three.module.min.js';
   const sunGlow = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: glowTex, color: 0xffd9a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
   );
-  sunGlow.scale.setScalar(48);
+  sunGlow.scale.setScalar(34);
   sunDisc.add(sunGlow);
   const moonGlow = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: glowTex, color: 0xcfe0ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
   );
-  moonGlow.scale.setScalar(38);
+  moonGlow.scale.setScalar(26);
   moonDisc.add(moonGlow);
 
   // ---------------------------------------------------------------- first person
@@ -353,7 +353,7 @@ import * as THREE from '/vendor/three.module.min.js';
     const glass = new THREE.MeshStandardMaterial({
       color: 0xffd9a0,
       emissive: 0xff9e48,
-      emissiveIntensity: 1.25,
+      emissiveIntensity: 0.65,
       roughness: 0.25,
       transparent: true,
       opacity: 0.86,
@@ -379,13 +379,13 @@ import * as THREE from '/vendor/three.module.min.js';
     g.add(cap);
 
     const glow = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: glowTex, color: 0xffbd72, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.SpriteMaterial({ map: glowTex, color: 0xffbd72, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false }),
     );
     glow.scale.setScalar(0.9);
     glow.position.set(0.06, -0.27, 0);
     g.add(glow);
 
-    const light = new THREE.PointLight(0xffb168, 0.5, 7, 2);
+    const light = new THREE.PointLight(0xffb168, 0.26, 7, 2);
     light.position.set(0.06, -0.24, 0.02);
     g.add(light);
 
@@ -622,7 +622,7 @@ import * as THREE from '/vendor/three.module.min.js';
     map: windowTex,
     emissive: 0xffb060,
     emissiveMap: windowGlowTex,
-    emissiveIntensity: 0.04,
+    emissiveIntensity: 0.02,
     roughness: 0.38,
   });
 
@@ -1149,7 +1149,7 @@ import * as THREE from '/vendor/three.module.min.js';
     const bulbMat = new THREE.MeshStandardMaterial({
       color: 0xffe6b8,
       emissive: 0xffb45c,
-      emissiveIntensity: 0.65,
+      emissiveIntensity: 0.4,
       roughness: 0.35,
     });
     const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.22, 0.17), bulbMat);
@@ -1162,7 +1162,7 @@ import * as THREE from '/vendor/three.module.min.js';
     const glow = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: glowTex, color: 0xffc070, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
     );
-    glow.scale.setScalar(2.6);
+    glow.scale.setScalar(1.55);
     glow.position.set(0.5, 2.12, 0);
     g.add(glow);
     scene.add(g);
@@ -1303,7 +1303,7 @@ import * as THREE from '/vendor/three.module.min.js';
     fin.position.set(-0.18, 1.82, 0);
     g.add(fin);
     const glow = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: glowTex, color: 0x9fd8df, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.SpriteMaterial({ map: glowTex, color: 0x9fd8df, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false }),
     );
     glow.scale.setScalar(2.2);
     glow.position.y = 1.25;
@@ -1598,7 +1598,7 @@ import * as THREE from '/vendor/three.module.min.js';
     blade.rotation.z = Math.PI / 2;
     blade.position.x = 7;
     beacon.add(blade);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffdda0, emissive: 0xffb45c, emissiveIntensity: 1 }));
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffdda0, emissive: 0xffb45c, emissiveIntensity: 0.6 }));
     lamp.position.y = 0.1;
     beacon.add(lamp);
     g.add(beacon);
@@ -1997,8 +1997,8 @@ import * as THREE from '/vendor/three.module.min.js';
     camera.rotation.set(player.pitch, player.yaw, player.roll);
 
     const lantern = handLantern.userData;
-    lantern.light.intensity = 0.16 + (snap?.darkness ?? 0) * 1.25;
-    lantern.glow.opacity = 0.25 + (snap?.darkness ?? 0) * 0.5;
+    lantern.light.intensity = 0.1 + realSky.dark * 0.42;
+    lantern.glow.opacity = 0.16 + realSky.dark * 0.18;
     handLantern.position.y = -0.31 + Math.sin(player.phase) * 0.006 * player.moving;
   }
 
@@ -2108,7 +2108,7 @@ import * as THREE from '/vendor/three.module.min.js';
         new THREE.MeshStandardMaterial({
           color: colour,
           emissive: colour,
-          emissiveIntensity: 1.1,
+          emissiveIntensity: 0.7,
           roughness: 0.25,
           metalness: 0.15,
           transparent: true,
@@ -2122,12 +2122,12 @@ import * as THREE from '/vendor/three.module.min.js';
           map: glowTex,
           color: colour,
           transparent: true,
-          opacity: 0.45,
+          opacity: 0.28,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         }),
       );
-      glow.scale.setScalar(1.7);
+      glow.scale.setScalar(1.45);
       mesh.add(glow);
       scene.add(mesh);
       crystalMeshes.set(o.id, { mesh, base: 0.55, phase: Math.random() * Math.PI * 2 });
@@ -2149,13 +2149,22 @@ import * as THREE from '/vendor/three.module.min.js';
   const warm = new THREE.Color('#e8a86a');
   const nightTop = new THREE.Color('#060b14');
   const nightBottom = new THREE.Color('#111a24');
+  const realSky = { minutes: 0, elev: 0, dark: 0, label: 'day' };
 
   function updateAtmosphere(now) {
-    const dark = clamp(snap?.darkness ?? 0, 0, 1);
+    // The sky follows the device's real local clock, independently of the
+    // simulation's accelerated day. Sunrise is ~06:00 and sunset ~18:00, with
+    // a soft twilight band around the horizon.
+    const clock = new Date();
+    const minutes = clock.getHours() * 60 + clock.getMinutes() + clock.getSeconds() / 60;
     const weather = snap?.weather ?? 'clear';
-    const minutes = snap?.minutes ?? 480;
     const angle = (minutes / 1440) * Math.PI * 2 - Math.PI / 2;
     const elev = Math.sin(angle);
+    const dark = clamp((0.08 - elev) / 0.38, 0, 1);
+    realSky.minutes = minutes;
+    realSky.elev = elev;
+    realSky.dark = dark;
+    realSky.label = dark > 0.7 ? 'night' : dark > 0.18 ? 'twilight' : 'day';
     const day = SKY_DAY[weather] ?? SKY_DAY.clear;
 
     scratchTop.set(day.top).lerp(nightTop, dark);
@@ -2179,11 +2188,11 @@ import * as THREE from '/vendor/three.module.min.js';
       sun.position.copy(sunPos);
       scratchSun.set('#fff2d8').lerp(warm, clamp(1 - elev / 0.55, 0, 1) * 0.55);
       sun.color.copy(scratchSun);
-      sun.intensity = (0.5 + elev * 2.0) * (LIGHT_BY_WEATHER[weather] ?? 1);
+      sun.intensity = (0.45 + elev * 1.7) * (LIGHT_BY_WEATHER[weather] ?? 1);
     } else {
       sun.position.copy(moonPos);
       sun.color.set('#a9c3e8');
-      sun.intensity = 0.4 * (0.45 + dark * 0.55) * (LIGHT_BY_WEATHER[weather] ?? 1);
+      sun.intensity = 0.3 * (0.45 + dark * 0.55) * (LIGHT_BY_WEATHER[weather] ?? 1);
     }
     sun.target.position.set(18, 0, 18);
     sun.target.updateMatrixWorld();
@@ -2200,16 +2209,16 @@ import * as THREE from '/vendor/three.module.min.js';
     moonDisc.position.copy(moonDir);
     moonDisc.visible = dark > 0.2 && weather !== 'fog';
     moonMat.opacity = clamp(dark * 1.2, 0, 1);
-    moonGlow.material.opacity = 0.45 * dark;
-    sunGlow.material.opacity = 0.5 * (1 - dark) * (weather === 'clear' ? 1 : 0.25);
+    moonGlow.material.opacity = 0.22 * dark;
+    sunGlow.material.opacity = 0.28 * (1 - dark) * (weather === 'clear' ? 1 : 0.25);
 
     stars.material.opacity = dark * (weather === 'clear' ? 0.85 : weather === 'fog' ? 0.05 : 0.22);
 
-    const winGlow = 0.03 + dark * 1.25;
+    const winGlow = 0.02 + dark * 0.55;
     windowMat.emissiveIntensity = winGlow;
-    for (const m of lampBulbs) m.emissiveIntensity = 0.45 + dark * 1.45;
-    for (const g of lampGlows) g.opacity = dark * 0.82;
-    mochiGroup.userData.light.intensity = dark * 0.7;
+    for (const m of lampBulbs) m.emissiveIntensity = 0.3 + dark * 0.65;
+    for (const g of lampGlows) g.opacity = dark * 0.3;
+    mochiGroup.userData.light.intensity = dark * 0.28;
 
     for (const l of lampLights) l.intensity = 0;
     if (dark > 0.04 && lampPositions.length) {
@@ -2221,13 +2230,13 @@ import * as THREE from '/vendor/three.module.min.js';
         const p = lampPositions[entry.i];
         const light = lampLights[index];
         light.position.set(p.x, 2.1, p.z);
-        light.intensity = dark * 1.8;
+        light.intensity = dark * 0.7;
       });
     }
 
     if (towerBeacon.group && towerBeacon.material) {
       towerBeacon.group.rotation.y = now / 5200;
-      towerBeacon.material.opacity = dark * 0.1;
+      towerBeacon.material.opacity = dark * 0.06;
     }
 
     if (waterUniforms) waterUniforms.uTime.value = now / 1000;
@@ -2266,7 +2275,7 @@ import * as THREE from '/vendor/three.module.min.js';
     const dist = Math.hypot(mochi.x - player.x, mochi.z - player.z);
     u.label.visible = dist < 10 && !mochi.asleep;
     u.label.material.opacity = clamp((10 - dist) / 5, 0, 0.9);
-    u.light.intensity = (0.15 + (snap?.darkness ?? 0) * 0.6) * clamp(1 - dist / 9, 0, 1);
+    u.light.intensity = (0.1 + realSky.dark * 0.34) * clamp(1 - dist / 9, 0, 1);
   }
 
   function updateOfferings(now) {
@@ -2389,6 +2398,11 @@ import * as THREE from '/vendor/three.module.min.js';
       lastPlace = place;
       $('place').textContent = place;
     }
+
+    const clock = new Date();
+    const hh = String(clock.getHours()).padStart(2, '0');
+    const mm = String(clock.getMinutes()).padStart(2, '0');
+    $('sun').textContent = `local ${hh}:${mm} · ${realSky.label}`;
   }
 
   function showToast(text) {
@@ -2415,8 +2429,8 @@ import * as THREE from '/vendor/three.module.min.js';
     last = now;
 
     if (town) {
-      updatePlayer(dt);
       updateAtmosphere(now);
+      updatePlayer(dt);
       updateMochi(dt);
       updateOfferings(now);
       updateDuck(now);
@@ -2446,6 +2460,19 @@ import * as THREE from '/vendor/three.module.min.js';
     },
     get render() {
       return { lowW, lowH, palette: PALETTE_N, firstPerson: true, meshes: scene.children.length };
+    },
+    get sky() {
+      return { minutes: realSky.minutes, elev: realSky.elev, dark: realSky.dark, label: realSky.label, exposure: renderer.toneMappingExposure };
+    },
+    get lights() {
+      return {
+        sunGlow: sunGlow.material.opacity,
+        moonGlow: moonGlow.material.opacity,
+        windows: windowMat.emissiveIntensity,
+        lampGlow: lampGlows[0]?.opacity ?? 0,
+        lampLight: lampLights[0]?.intensity ?? 0,
+        lantern: handLantern.userData.light.intensity,
+      };
     },
     get stats() {
       return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles };
