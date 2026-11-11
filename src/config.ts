@@ -128,6 +128,20 @@ const GEMINI_FALLBACK: BrainEndpoint = {
   baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
 };
 
+/**
+ * A second Gemini model, pinned on purpose. Google meters requests per model,
+ * so this is another 500 calls a day that an alias bump cannot take away.
+ */
+const GEMINI_31_FALLBACK: BrainEndpoint = {
+  name: 'gemini-3.1',
+  provider: 'gemini',
+  apiKey: '',
+  model: 'gemini-3.1-flash-lite',
+  fastModel: 'gemini-3.1-flash-lite',
+  visionModel: 'gemini-3.1-flash-lite',
+  baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+};
+
 const GROQ_FALLBACK: BrainEndpoint = {
   name: 'groq',
   provider: 'openai',
@@ -135,6 +149,27 @@ const GROQ_FALLBACK: BrainEndpoint = {
   model: 'openai/gpt-oss-120b',
   fastModel: 'openai/gpt-oss-20b',
   visionModel: 'openai/gpt-oss-120b',
+  baseUrl: 'https://api.groq.com/openai/v1',
+};
+
+/** Groq meters per model too: a third chat model is a third 1,000 calls a day. */
+const GROQ_QWEN_FALLBACK: BrainEndpoint = {
+  name: 'groq-qwen',
+  provider: 'openai',
+  apiKey: '',
+  model: 'qwen/qwen3.8-27b',
+  fastModel: 'qwen/qwen3.8-27b',
+  visionModel: 'qwen/qwen3.8-27b',
+  baseUrl: 'https://api.groq.com/openai/v1',
+};
+
+const GROQ_20B_FALLBACK: BrainEndpoint = {
+  name: 'groq-20b',
+  provider: 'openai',
+  apiKey: '',
+  model: 'openai/gpt-oss-20b',
+  fastModel: 'openai/gpt-oss-20b',
+  visionModel: 'openai/gpt-oss-20b',
   baseUrl: 'https://api.groq.com/openai/v1',
 };
 
@@ -148,6 +183,19 @@ const OPENROUTER_FALLBACK: BrainEndpoint = {
   baseUrl: 'https://openrouter.ai/api/v1',
   jsonMode: false,
 };
+
+/**
+ * The order he scans when a provider says no. Each row has its own quota, so the
+ * list is a stack of independent budgets rather than one shared one.
+ */
+const FREE_CHAIN: BrainEndpoint[] = [
+  GEMINI_FALLBACK,
+  GEMINI_31_FALLBACK,
+  GROQ_FALLBACK,
+  GROQ_QWEN_FALLBACK,
+  GROQ_20B_FALLBACK,
+  OPENROUTER_FALLBACK,
+];
 
 const DEFAULTS: Config = {
   port: 4321,
@@ -173,11 +221,7 @@ const DEFAULTS: Config = {
     reserveCalls: 40,
     cooldownMinutes: 20,
     fallback: { ...GROQ_FALLBACK },
-    fallbacks: [
-      { ...GEMINI_FALLBACK },
-      { ...GROQ_FALLBACK },
-      { ...OPENROUTER_FALLBACK },
-    ],
+    fallbacks: FREE_CHAIN.map((endpoint) => ({ ...endpoint })),
   },
   memory: {
     slotsPerSection: 24,
@@ -250,17 +294,24 @@ export function loadConfig(): Config {
   // config loads never mutate the shared defaults.
   cfg.brain.fallback = { ...cfg.brain.fallback };
   cfg.brain.fallbacks = cfg.brain.fallbacks.map((f) => ({ ...f }));
-  for (const base of [GROQ_FALLBACK, GEMINI_FALLBACK, OPENROUTER_FALLBACK]) {
+  for (const base of FREE_CHAIN) {
     if (!cfg.brain.fallbacks.some((f) => f.name === base.name)) {
       cfg.brain.fallbacks.push({ ...base });
     }
   }
   const fallbackFor = (name: string) => cfg.brain.fallbacks.find((f) => f.name === name)!;
+  const chain = () => [cfg.brain, ...cfg.brain.fallbacks, cfg.brain.fallback];
+  const onHost = (needle: string) => chain().filter((e) => e.baseUrl.includes(needle));
 
-  // The legacy singular `fallback` is the Groq stage now, so only the named
-  // entry takes the Gemini key. GEMINI_* overrides follow the primary too.
+  // Keys follow the provider, not the entry: every Gemini model shares
+  // GEMINI_API_KEY and every Groq model shares GROQ_API_KEY, so adding a stage
+  // needs no new env var.
+  if (env.GEMINI_API_KEY) for (const e of onHost('generativelanguage')) e.apiKey = env.GEMINI_API_KEY;
+  if (env.GROQ_API_KEY) for (const e of onHost('api.groq.com')) e.apiKey = env.GROQ_API_KEY;
+  if (env.OPENROUTER_API_KEY) for (const e of onHost('openrouter.ai')) e.apiKey = env.OPENROUTER_API_KEY;
+
+  // GEMINI_* overrides follow the primary and the alias entry, never the pinned one.
   const geminiLeads = cfg.brain.provider === 'gemini';
-  if (env.GEMINI_API_KEY) fallbackFor('gemini').apiKey = env.GEMINI_API_KEY;
   if (env.GEMINI_MODEL) {
     fallbackFor('gemini').model = env.GEMINI_MODEL;
     if (geminiLeads && !env.LLM_MODEL) cfg.brain.model = env.GEMINI_MODEL;
@@ -274,13 +325,13 @@ export function loadConfig(): Config {
     if (geminiLeads && !env.LLM_VISION_MODEL) cfg.brain.visionModel = env.GEMINI_VISION_MODEL;
   }
 
-  if (env.GROQ_API_KEY) fallbackFor('groq').apiKey = env.GROQ_API_KEY;
   if (env.GROQ_MODEL) fallbackFor('groq').model = env.GROQ_MODEL;
   if (env.GROQ_FAST_MODEL) fallbackFor('groq').fastModel = env.GROQ_FAST_MODEL;
   if (env.GROQ_VISION_MODEL) fallbackFor('groq').visionModel = env.GROQ_VISION_MODEL;
-  if (env.GROQ_BASE_URL) fallbackFor('groq').baseUrl = env.GROQ_BASE_URL;
+  if (env.GROQ_BASE_URL) {
+    for (const e of cfg.brain.fallbacks.filter((f) => f.name.startsWith('groq'))) e.baseUrl = env.GROQ_BASE_URL;
+  }
 
-  if (env.OPENROUTER_API_KEY) fallbackFor('openrouter').apiKey = env.OPENROUTER_API_KEY;
   if (env.OPENROUTER_MODEL) fallbackFor('openrouter').model = env.OPENROUTER_MODEL;
   if (env.OPENROUTER_FAST_MODEL) fallbackFor('openrouter').fastModel = env.OPENROUTER_FAST_MODEL;
   if (env.OPENROUTER_VISION_MODEL) fallbackFor('openrouter').visionModel = env.OPENROUTER_VISION_MODEL;

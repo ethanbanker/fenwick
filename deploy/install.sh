@@ -259,7 +259,7 @@ else
   warn "no api key in $ROOT/.env"
   warn "he will still live (reflex brain: walking, eating, sleeping, judging offerings)"
   warn "but he will not deliberate. get a free Gemini key: https://aistudio.google.com/apikey"
-  warn "backups, in this order: Groq https://console.groq.com/keys"
+  warn "then Groq (three free models): https://console.groq.com/keys"
   warn "  OpenRouter https://openrouter.ai/settings/keys · paid DeepSeek https://platform.deepseek.com/api_keys"
   warn "then: nano $ROOT/.env   and re-run this script"
 fi

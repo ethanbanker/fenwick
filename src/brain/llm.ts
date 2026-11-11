@@ -31,6 +31,48 @@ export type BudgetReport = {
 
 type Endpoint = BrainEndpoint & { label: string };
 
+/** Carries the provider's own retry hint out of the fetch layer. */
+class EndpointError extends Error {
+  retryAfterMs: number | null;
+
+  constructor(message: string, retryAfterMs: number | null = null) {
+    super(message);
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/**
+ * How long the provider says to wait: `Retry-After` (seconds or a date),
+ * Gemini's RetryInfo `retryDelay`, or Groq's "try again in 7.6s" prose.
+ * A per-minute limit answers in seconds, a spent daily quota in hours.
+ */
+function retryHintMs(headers: Headers, body: string): number | null {
+  const header = headers.get('retry-after');
+  if (header) {
+    const secs = Number(header);
+    if (Number.isFinite(secs) && secs >= 0) return Math.round(secs * 1000);
+    const at = Date.parse(header);
+    if (Number.isFinite(at)) return Math.max(0, at - Date.now());
+  }
+  const quoted = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(body);
+  if (quoted) return Math.round(Number(quoted[1]) * 1000);
+  const prose = /(?:try again|retry) in\s+((?:\d+h)?(?:\d+m)?(?:\d+(?:\.\d+)?s)?)/i.exec(body);
+  if (prose) {
+    const parts = /(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?/i.exec(prose[1]);
+    if (parts) {
+      const ms =
+        (Number(parts[1] ?? 0) * 3600 + Number(parts[2] ?? 0) * 60 + Number(parts[3] ?? 0)) * 1000;
+      if (ms > 0) return Math.round(ms);
+    }
+  }
+  return null;
+}
+
+/** Keep a hint sane: never hot-loop, never idle past the next daily reset. */
+function clampCooldown(ms: number): number {
+  return Math.max(30_000, Math.min(ms, 24 * 3600_000));
+}
+
 export class Brain {
   private cfg: Config;
   private dayKey: string;
@@ -205,8 +247,13 @@ export class Brain {
             lastErr = `${endpoint.label}: ${message}`;
             const quota = /429|rate.?limit|quota|per.?day|daily limit|too many requests/i.test(message);
             if (quota) {
-              const until = Date.now() + this.cfg.brain.cooldownMinutes * 60_000;
-              this.endpointCooling.set(this.endpointId(endpoint), until);
+              // Trust the provider's hint when there is one: a per-minute limit is
+              // back in seconds, a spent daily quota not until tomorrow. A flat
+              // guess either hammers the daily limit or idles a healthy endpoint.
+              const hint = (err as EndpointError).retryAfterMs;
+              const waitMs = clampCooldown(hint ?? this.cfg.brain.cooldownMinutes * 60_000);
+              this.endpointCooling.set(this.endpointId(endpoint), Date.now() + waitMs);
+              lastErr += ` (skipped ${Math.round(waitMs / 1000)}s)`;
               break;
             }
             const retriable = /503|502|timeout|overloaded|EAI_AGAIN|fetch failed/i.test(message);
@@ -216,8 +263,7 @@ export class Brain {
         }
       }
 
-      this.callsToday += 1;
-      this.saveBudget();
+      // A refused request costs nothing, so it must not spend the day's budget.
       this.lastError = lastErr || 'all endpoints failed';
       return { ok: false, text: '', error: this.lastError, model: lastModel, ms: Date.now() - startedAt };
     };
@@ -289,7 +335,7 @@ export class Brain {
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`gemini ${res.status}: ${text.slice(0, 300)}`);
+      throw new EndpointError(`gemini ${res.status}: ${text.slice(0, 300)}`, retryHintMs(res.headers, text));
     }
     const data = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
@@ -333,7 +379,7 @@ export class Brain {
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`openai ${res.status}: ${text.slice(0, 300)}`);
+      throw new EndpointError(`openai ${res.status}: ${text.slice(0, 300)}`, retryHintMs(res.headers, text));
     }
     const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const text = data.choices?.[0]?.message?.content?.trim() ?? '';
