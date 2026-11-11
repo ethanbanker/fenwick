@@ -51,9 +51,9 @@ export type Config = {
     reserveCalls: number;
     /** Minutes to skip a provider after it reports a rate or daily quota limit. */
     cooldownMinutes: number;
-    /** Tried when the primary endpoint fails, has no key, or cannot see images. */
+    /** Legacy singular fallback; only appended when absent from `fallbacks`. */
     fallback: BrainEndpoint;
-    /** Free or paid endpoints tried in order after the legacy fallback. */
+    /** Free or paid endpoints tried in this exact order after the primary. */
     fallbacks: BrainEndpoint[];
   };
   memory: {
@@ -120,9 +120,11 @@ const GEMINI_FALLBACK: BrainEndpoint = {
   name: 'gemini',
   provider: 'gemini',
   apiKey: '',
-  model: 'gemini-2.5-flash',
-  fastModel: 'gemini-2.5-flash-lite',
-  visionModel: 'gemini-2.5-flash',
+  // Google's rolling aliases follow current models, avoiding deprecation 404s.
+  // Lite is the reliable free-tier path; Flash is currently capacity-limited.
+  model: 'gemini-flash-lite-latest',
+  fastModel: 'gemini-flash-lite-latest',
+  visionModel: 'gemini-flash-lite-latest',
   baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
 };
 
@@ -171,8 +173,8 @@ const DEFAULTS: Config = {
     cooldownMinutes: 20,
     fallback: { ...GEMINI_FALLBACK },
     fallbacks: [
-      { ...GEMINI_FALLBACK },
       { ...GROQ_FALLBACK },
+      { ...GEMINI_FALLBACK },
       { ...OPENROUTER_FALLBACK },
     ],
   },
@@ -247,7 +249,7 @@ export function loadConfig(): Config {
   // config loads never mutate the shared defaults.
   cfg.brain.fallback = { ...cfg.brain.fallback };
   cfg.brain.fallbacks = cfg.brain.fallbacks.map((f) => ({ ...f }));
-  for (const base of [GEMINI_FALLBACK, GROQ_FALLBACK, OPENROUTER_FALLBACK]) {
+  for (const base of [GROQ_FALLBACK, GEMINI_FALLBACK, OPENROUTER_FALLBACK]) {
     if (!cfg.brain.fallbacks.some((f) => f.name === base.name)) {
       cfg.brain.fallbacks.push({ ...base });
     }

@@ -101,10 +101,12 @@ export class Brain {
 
   private endpoints(call?: LlmCall): Endpoint[] {
     const b = this.cfg.brain;
+    // Keep the ordered array authoritative. The old singular fallback is only
+    // appended for configs that predate `fallbacks` and are not already present.
     const candidates: Array<{ endpoint: BrainEndpoint; label: string }> = [
       { endpoint: b, label: b.name ?? b.provider },
-      { endpoint: b.fallback, label: b.fallback.name ?? `${b.fallback.provider} fallback` },
       ...b.fallbacks.map((f) => ({ endpoint: f, label: f.name ?? `${f.provider} fallback` })),
+      { endpoint: b.fallback, label: b.fallback.name ?? `${b.fallback.provider} fallback` },
     ];
     const list: Endpoint[] = [];
     const seen = new Set<string>();
