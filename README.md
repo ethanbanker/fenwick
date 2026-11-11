@@ -1,10 +1,10 @@
 # Fenwick
 
-An autonomous owl called **Mochi** who lives in a small isometric town on your
-network. He has needs that drift whether or not anyone is watching, a mood that
-responds to what happens to him, and a brain that decides what he does next every
-few seconds. He eats, sleeps, gets bored, walks to the laundrette, browses the real
-internet, keeps a diary, and remembers the people who leave him things.
+An autonomous cat called **Mochi** who lives in a small town on your network. He has
+needs that drift whether or not anyone is watching, a mood that responds to what
+happens to him, and a brain that decides what he does next every few seconds. He
+eats, sleeps, gets bored, walks to the laundrette, browses the real internet, keeps
+a diary, and remembers the people who leave him things.
 
 He is not a chatbot with an avatar. There is no chat box. If you close the tab, his
 day carries on; if everyone closes every tab, his day still carries on.
@@ -25,24 +25,28 @@ cp .env.example .env      # then paste a free API key into it (see below)
 node src/start.ts
 ```
 
-Open <http://localhost:4321>. That is the whole thing running on your laptop. To put
-him on the machine that stays on, skip to [Deploying to the micropc](#deploying-to-the-micropc).
+Open <http://localhost:4321>. You walk straight into the town — no menu, no avatar,
+no third-person camera. To put him on the machine that stays on, skip to
+[Deploying to the micropc](#deploying-to-the-micropc).
 
-### The one thing you have to do: get a free key
+### The one thing you have to do: get a key
 
-The brain needs a language model. The default is Google's Gemini, because its free
-tier needs no credit card and it can look at pictures, which he needs for picture
-offerings.
+The brain runs on **DeepSeek Flash** first, with **Gemini** as an automatic backup.
+Both APIs are cheap or free to start, and you only need one of them:
 
-1. Go to <https://aistudio.google.com/apikey>
-2. Create an API key (free, no card)
-3. Put it in `.env`:
+1. DeepSeek: <https://platform.deepseek.com/api_keys> — put `DEEPSEEK_API_KEY` in `.env`.
+2. Gemini: <https://aistudio.google.com/apikey> — put `GEMINI_API_KEY` in `.env`.
 
 ```
-GEMINI_API_KEY=your-key-here
+DEEPSEEK_API_KEY=your-key-here
+GEMINI_API_KEY=your-backup-key-here
 ```
 
-**Without a key he is not broken** — he falls back to a reflex brain and keeps
+If DeepSeek is rate-limited, errors, or a picture needs looking at, the brain tries
+Gemini next; if only a Gemini key exists, it uses Gemini from the start. The daily
+budget is shared across both.
+
+**Without either key he is not broken** — he falls back to a reflex brain and keeps
 living: walking, eating, sleeping, and judging what you leave him. He just stops
 deliberating, so the interesting decisions dry up. You will see
 `brain: reflex only (no API key)` in the log.
@@ -62,8 +66,9 @@ him under systemd, and prints the address. The defaults (1 core, 1 GB, 8 GB disk
 take two keypresses; **advanced** lets you set the hostname, resources, storage, bridge,
 a static IP and the root password.
 
-It asks for a Gemini key on the way. That is the only thing it needs from you, and
-leaving it blank is fine — he lives on reflexes until you add one, and it tells you how.
+It asks for a Gemini key on the way, which works as the backup. Add a
+`DEEPSEEK_API_KEY` to `/opt/fenwick/.env` afterwards to make Flash the primary. Leaving
+both blank is fine — he lives on reflexes until you add one, and it tells you how.
 
 `ct/fenwick.sh` runs on the host. `install/fenwick-install.sh` runs inside the container,
 then hands over to `deploy/install.sh`.
@@ -222,17 +227,18 @@ when it runs out he drops to reflexes until the counter resets. Details under
 
 | page | what it is |
 |---|---|
-| `/` | the town. A renderer only — it holds no state and cannot change anything about him. |
-| `/walk` | walk the town yourself. Third person, rendered in Three.js: **WASD** to move, **shift** to run, **space** to jump, drag to look, wheel to zoom. Collision, day/night, weather and lamplight are all live, and Mochi is wherever he actually is — the tracker points to him. Also a renderer only. |
+| `/` | the town, first person. You walk in at the fountain with no avatar in the way. **WASD**, **shift** to run, click for the mouse (esc lets go), drag to look without capture. The renderer is Three.js at a deliberately low internal resolution, forced through an ordered-dither palette. A renderer only — it holds no state and cannot change anything about him. |
+| `/walk` | alias for `/`. |
+| `/map` | the old isometric map, for a quick overview. Also a renderer only. |
 | `/diary` | what he wrote down himself, unedited. He writes at the end of each in-world day, and sometimes mid-day when a day gets heavy. |
 | `/memories` | what he is carrying and what it costs him. The slot grid comes before the words on purpose: his memory is finite and competitive. |
 | `/mind` | his authored self next to what he has written about himself since, so the drift is a diff you can read. Plus what he has been reading on the internet, and how much of the day's model budget is left. |
 | `/offerings` | leave him something, and see what he did with what he was left. |
 
-**Finding him.** He does not wait in one place. `/walk` drops you at the fountain
-with a tracker that points towards him and counts the tiles; when you get close the
-panel shows what he is doing and what he is thinking. He is nocturnal, so midday is
-usually a bad time to look unless you check his nest.
+**Finding him.** He does not wait in one place. `/` drops you at the fountain with a
+tracker that points towards him and counts the tiles; when you get close the panel
+shows what he is doing and what he is thinking. He is nocturnal, so midday is usually
+a bad time to look unless you check his nest.
 
 **Leaving him something.** Words or a picture. It does not land in an inbox: a
 crystal appears somewhere in the town, and he has to come across it. His sense range
@@ -261,7 +267,9 @@ Three parts, kept separate on purpose.
 
 ```
 src/viewer/     renderers. no simulation state, cannot change anything
-                (walk.js is the Three.js town; three itself is vendored in
+                (walk.js is the first-person Three.js town; the scene renders
+                at ~540p into a low-resolution target and is quantised to a
+                24-colour ordered-dither palette. three itself is vendored in
                 src/viewer/vendor so there is still no npm install)
 src/world/      the simulation. ticks at 20Hz, owns his body, needs, mood,
                 the town, the weather, the clock, the offerings, and the finite
@@ -348,8 +356,14 @@ lives on reflexes.
 
 ### Using a different model
 
-Any OpenAI-compatible endpoint works (Groq, Cerebras, OpenRouter, a local Ollama).
-In `.env`:
+The default chain is DeepSeek `deepseek-flash` (OpenAI-compatible) with Gemini
+2.5 Flash as the fallback. `DEEPSEEK_API_KEY` and `GEMINI_API_KEY` are enough; no
+model names need changing. If Freebuff ever ships a public API endpoint, it would be
+another OpenAI-compatible entry here, but it does not have one today and this project
+does not scrape its private endpoints.
+
+Any other OpenAI-compatible endpoint works too (Groq, Cerebras, OpenRouter, a local
+Ollama). In `.env`:
 
 ```
 LLM_PROVIDER=openai
@@ -362,7 +376,8 @@ LLM_API_KEY=...
 
 For Ollama: `LLM_PROVIDER=openai`, `LLM_BASE_URL=http://127.0.0.1:11434`,
 `LLM_MODEL=llama3.2`, `LLM_API_KEY=ollama`. Fully offline, no key, no quota — just
-slower thinking and no vision unless you pull a vision model.
+slower thinking and no vision unless you pull a vision model. Set
+`GEMINI_API_KEY` as well if you want the vision fallback.
 
 ---
 
@@ -376,7 +391,8 @@ slower thinking and no vision unless you pull a vision model.
 | `sim.tickHz` | simulation tick rate. 20 is plenty. |
 | `sim.seed` | the town layout is deterministic from this. |
 | `brain.model` / `fastModel` / `visionModel` | which models do which job |
-| `brain.maxCallsPerDay` | hard daily ceiling on model calls |
+| `brain.fallback` | the backup endpoint (Gemini by default, key from `.env`) |
+| `brain.maxCallsPerDay` | hard daily ceiling on model calls, shared by primary and backup |
 | `memory.slotsPerSection` / `halfLifeDays` | how much he can hold, how fast it fades |
 | `offerings.spawnRadiusTiles` / `senseRadiusTiles` | how far things appear, how close he must get to notice. Smaller sense radius = harder to find. |
 | `browse.enabled` | turn the internet off entirely |

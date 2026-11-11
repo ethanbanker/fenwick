@@ -55,7 +55,7 @@ banner() {
 
 ASCII
   printf '%s' "$O"
-  printf '  %sAn owl who lives in a small town.%s\n' "$D" "$O"
+  printf '  %sA cat who lives in a small town.%s\n' "$D" "$O"
   printf '  %sHe walks, eats, sleeps, browses the internet and keeps a diary.%s\n\n' "$D" "$O"
 }
 
@@ -189,7 +189,7 @@ create_ct() {
     --unprivileged 1 \
     --onboot 1 \
     --password "$CT_PASS" \
-    --description "$APP — an autonomous owl who lives in a small town. https://github.com/$REPO" \
+    --description "$APP — an autonomous cat who lives in a small town. https://github.com/$REPO" \
     --start 1 >/dev/null || die "pct create failed"
 
   ok "container $CTID created"
@@ -378,13 +378,13 @@ fi
 STORAGE=${STORAGE:-$(rootdir_storages | head -1)}
 [ -n "$STORAGE" ] || die "no storage with 'rootdir' content — enable it under Datacenter → Storage"
 
-API_KEY=$(ask "Model key" "Paste a free Gemini API key, or leave this empty.
+API_KEY=$(ask "Model key" "Paste a free Gemini API key for the backup brain, or leave this empty.
 
-He needs a language model to deliberate. Without one he still lives — walking,
-eating, sleeping, judging what you leave him — but he stops making real
-decisions. Free key, no card: https://aistudio.google.com/apikey
+He runs on DeepSeek Flash first and falls back to Gemini. This installer writes
+the Gemini key now; add DEEPSEEK_API_KEY to .env afterwards to make Flash primary.
+Free Gemini key, no card: https://aistudio.google.com/apikey
 
-Leave empty to add it later." "") || API_KEY=""
+Leave empty to add either key later." "") || API_KEY=""
 API_KEY=$(printf '%s' "${API_KEY:-}" | tr -d '[:space:]')
 
 printf '\n%s  About to create:%s\n' "$B" "$O"

@@ -519,10 +519,20 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // walkable third person: the same town, with Mochi tracked live inside it
-    if (p === '/walk' || p === '/walk/') {
+    // The town is the front door now: first person, no avatar, Mochi tracked live.
+    if (p === '/' || p === '/walk' || p === '/walk/') {
       const html = fs
         .readFileSync(path.join(ROOT, 'src', 'viewer', 'walk.html'), 'utf8')
+        .replaceAll('__CREATURE__', cfg.creature.name)
+        .replaceAll('__TOWN__', cfg.town.name);
+      sendHtml(res, 200, html);
+      return;
+    }
+
+    // The old isometric map is still here, one click away.
+    if (p === '/map' || p === '/map/') {
+      const html = fs
+        .readFileSync(path.join(ROOT, 'src', 'viewer', 'index.html'), 'utf8')
         .replaceAll('__CREATURE__', cfg.creature.name)
         .replaceAll('__TOWN__', cfg.town.name);
       sendHtml(res, 200, html);

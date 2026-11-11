@@ -62,9 +62,9 @@ export function baselineSheet(cfg: Config): PersonaSheet {
       'No cutesy spelling, no third-person baby talk, no "hehe". If something moved him, he describes the object ' +
       'that moved him instead of the feeling.',
     backstory:
-      `${name} is a small owl who lives alone in a crooked house in Fenwick, a town that does not need him and ` +
-      'keeps him anyway. He does not remember arriving. He has a diary, a payphone that never rings, and an ' +
-      'opinion about every bench in town.',
+      `${name} is a small soot-black cat who lives alone in a crooked house in Fenwick, a town that does not ` +
+      'need him and keeps him anyway. He does not remember arriving. He has a diary, a payphone that never rings, ' +
+      'and an opinion about every bench in town.',
     notes: [],
   };
 }
@@ -79,7 +79,17 @@ export function loadPersona(cfg: Config): { baseline: PersonaSheet; current: Per
   if (!fs.existsSync(file)) return { baseline, current: baseline };
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as PersonaSheet;
+    // Species is part of the authored identity, not something he drifts into.
+    // Older saves were owls; when the baseline species changes, follow it and
+    // replace the inherited backstory while keeping everything he learned.
+    const migrated = Boolean(raw.species && raw.species !== baseline.species);
+    if (migrated) {
+      raw.species = baseline.species;
+      if (/\bowl\b/i.test(raw.backstory ?? '')) raw.backstory = baseline.backstory;
+    }
     const current = enforceGuards(baseline, raw);
+    // write the migration once so /mind and the next restart agree with it
+    if (migrated) savePersona(cfg, current);
     return { baseline, current };
   } catch {
     return { baseline, current: baseline };
@@ -116,6 +126,8 @@ export function enforceGuards(baseline: PersonaSheet, incoming: PersonaSheet): P
     quirks: [],
     notes: [],
   };
+  out.species = baseline.species;
+  out.pronouns = baseline.pronouns;
 
   const maxLearned = Math.ceil(baseline.traits.length * MAX_DRIFT);
   let learned = 0;

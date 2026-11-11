@@ -3,6 +3,15 @@ import path from 'node:path';
 
 export type ProviderName = 'gemini' | 'openai';
 
+export type BrainEndpoint = {
+  provider: ProviderName;
+  apiKey: string;
+  model: string;
+  fastModel: string;
+  visionModel: string;
+  baseUrl: string;
+};
+
 export type Config = {
   port: number;
   host: string;
@@ -36,6 +45,8 @@ export type Config = {
     minSecondsBetweenCalls: number;
     /** Below this many calls left in the day, only the fast model is used. */
     reserveCalls: number;
+    /** Tried when the primary endpoint fails, has no key, or cannot see images. */
+    fallback: BrainEndpoint;
   };
   memory: {
     slotsPerSection: number;
@@ -101,22 +112,31 @@ const DEFAULTS: Config = {
   port: 4321,
   host: '0.0.0.0',
   dataDir: 'data',
-  creature: { name: 'Mochi', species: 'owl', pronouns: 'he' },
+  creature: { name: 'Mochi', species: 'cat', pronouns: 'he' },
   town: { name: 'Fenwick' },
   sim: { tickHz: 20, dayLengthMinutes: 60, seed: 1337 },
   brain: {
-    provider: 'gemini',
+    // DeepSeek's API is OpenAI-compatible and serves deepseek-flash at this URL.
+    provider: 'openai',
     apiKey: '',
-    model: 'gemini-2.5-flash',
-    fastModel: 'gemini-2.5-flash-lite',
-    visionModel: 'gemini-2.5-flash',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    model: 'deepseek-flash',
+    fastModel: 'deepseek-flash',
+    visionModel: 'deepseek-flash',
+    baseUrl: 'https://api.deepseek.com',
     temperature: 1.0,
     heartbeatMinMs: 4000,
     heartbeatMaxMs: 15000,
     maxCallsPerDay: 350,
     minSecondsBetweenCalls: 6,
     reserveCalls: 40,
+    fallback: {
+      provider: 'gemini',
+      apiKey: '',
+      model: 'gemini-2.5-flash',
+      fastModel: 'gemini-2.5-flash-lite',
+      visionModel: 'gemini-2.5-flash',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    },
   },
   memory: {
     slotsPerSection: 24,
@@ -168,9 +188,27 @@ export function loadConfig(): Config {
   if (env.LLM_FAST_MODEL) cfg.brain.fastModel = env.LLM_FAST_MODEL;
   if (env.LLM_VISION_MODEL) cfg.brain.visionModel = env.LLM_VISION_MODEL;
   if (env.LLM_BASE_URL) cfg.brain.baseUrl = env.LLM_BASE_URL;
+
+  // DeepSeek is the default brain. Its API is OpenAI-compatible, so it needs
+  // no special adapter; GEMINI_API_KEY stays configured as the safety net.
+  const explicitProvider = env.LLM_PROVIDER === 'gemini' || env.LLM_PROVIDER === 'openai';
+  if (!explicitProvider && env.DEEPSEEK_API_KEY) {
+    cfg.brain.provider = 'openai';
+    cfg.brain.baseUrl = env.LLM_BASE_URL ?? 'https://api.deepseek.com';
+    if (!env.LLM_MODEL) cfg.brain.model = 'deepseek-flash';
+    if (!env.LLM_FAST_MODEL) cfg.brain.fastModel = cfg.brain.model;
+    if (!env.LLM_VISION_MODEL) cfg.brain.visionModel = cfg.brain.model;
+  }
+
   if (env.LLM_API_KEY) cfg.brain.apiKey = env.LLM_API_KEY;
-  else if (cfg.brain.provider === 'gemini' && env.GEMINI_API_KEY) cfg.brain.apiKey = env.GEMINI_API_KEY;
-  else if (env.OPENAI_API_KEY) cfg.brain.apiKey = env.OPENAI_API_KEY;
+  else if (env.DEEPSEEK_API_KEY && cfg.brain.provider === 'openai') cfg.brain.apiKey = env.DEEPSEEK_API_KEY;
+  else if (env.GEMINI_API_KEY && cfg.brain.provider === 'gemini') cfg.brain.apiKey = env.GEMINI_API_KEY;
+  else if (env.OPENAI_API_KEY && cfg.brain.provider === 'openai') cfg.brain.apiKey = env.OPENAI_API_KEY;
+
+  if (env.GEMINI_API_KEY) cfg.brain.fallback.apiKey = env.GEMINI_API_KEY;
+  if (env.GEMINI_MODEL) cfg.brain.fallback.model = env.GEMINI_MODEL;
+  if (env.GEMINI_FAST_MODEL) cfg.brain.fallback.fastModel = env.GEMINI_FAST_MODEL;
+  if (env.GEMINI_VISION_MODEL) cfg.brain.fallback.visionModel = env.GEMINI_VISION_MODEL;
 
   if (env.DISCORD_BOT_TOKEN) cfg.discord.token = env.DISCORD_BOT_TOKEN;
   if (env.DISCORD_CHANNEL_ID) cfg.discord.channelId = env.DISCORD_CHANNEL_ID;

@@ -2,7 +2,7 @@
   "name": "fenwick",
   "version": "1.0.0",
   "private": true,
-  "description": "Mochi, an autonomous owl who lives in a small town on your network.",
+  "description": "Mochi, an autonomous cat who lives in a small town on your network.",
   "type": "module",
   "engines": {
     "node": ">=22.6"

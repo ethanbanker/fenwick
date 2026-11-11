@@ -105,7 +105,7 @@ export async function fetchPage(
   try {
     const res = await fetch(parsed, {
       headers: {
-        'user-agent': 'Mozilla/5.0 (compatible; FenwickBot/1.0; a small owl)',
+        'user-agent': 'Mozilla/5.0 (compatible; FenwickBot/1.0; a small town creature)',
         accept: 'text/html,application/xhtml+xml',
       },
       redirect: 'follow',

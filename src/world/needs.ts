@@ -32,7 +32,7 @@ function weatherBias(kind: string): number {
   }
 }
 
-/** Owls: awake and bright at night, dim and sleepy through the middle of the day. */
+/** Cats: awake and bright at night, dim and sleepy through the middle of the day. */
 function circadianEnergy(hour: number): number {
   const x = ((hour % 24) + 24) % 24;
   // peak at 22:00 and 02:00, trough at 12:00

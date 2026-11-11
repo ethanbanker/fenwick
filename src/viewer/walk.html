@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080a09">
-<title>__CREATURE__ — walk the town</title>
-<meta name="description" content="Walk through __TOWN__ yourself and find __CREATURE__.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d0f0d'/%3E%3Ccircle cx='11' cy='13' r='4.2' fill='%23e2b45c'/%3E%3Ccircle cx='21' cy='13' r='4.2' fill='%23e2b45c'/%3E%3Cpath d='M16 18l3.2 5.4h-6.4z' fill='%23d99a47'/%3E%3C/svg%3E">
+<title>__TOWN__ — walk in</title>
+<meta name="description" content="Walk into __TOWN__ in first person and find __CREATURE__.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d0f0d'/%3E%3Cpath d='M8 15 6 5l7 4h6l7-4-2 10v4a8 8 0 0 1-16 0z' fill='%23d9b25e'/%3E%3Ccircle cx='12' cy='16' r='1.9' fill='%2310110f'/%3E%3Ccircle cx='20' cy='16' r='1.9' fill='%2310110f'/%3E%3Cpath d='M16 19l2.2 2.2h-4.4z' fill='%23a86f66'/%3E%3C/svg%3E">
 <link rel="modulepreload" href="/vendor/three.module.min.js">
 <style>
   :root{
@@ -18,8 +18,16 @@
   html,body{margin:0;height:100%;overflow:hidden;background:#080a09;color:var(--ink);
     font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased}
-  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;outline:none}
+  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;outline:none;image-rendering:pixelated}
   #scene.drag{cursor:grabbing}
+
+  #reticle{position:fixed;z-index:9;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;
+    border-radius:50%;background:rgba(255,244,220,.5);pointer-events:none;
+    box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+  #lookhint{position:fixed;z-index:9;left:50%;bottom:74px;transform:translateX(-50%);
+    font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(238,226,208,.55);
+    pointer-events:none;transition:opacity .5s ease;white-space:nowrap}
+  body.locked #lookhint{opacity:0}
 
   .hud{position:fixed;z-index:10;pointer-events:none;text-shadow:0 1px 5px rgba(0,0,0,.8)}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
@@ -61,6 +69,7 @@
   #controls{bottom:18px;left:50%;transform:translateX(-50%);text-align:center;
     font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
     max-width:calc(100vw - 560px);line-height:1.9}
+  body.locked #controls{opacity:.55}
   #controls kbd{font-family:inherit;color:var(--dim);border:1px solid var(--line);
     border-radius:4px;padding:1px 5px;margin:0 1px;background:rgba(255,255,255,.03)}
   #controls .sep{opacity:.35;padding:0 5px}
@@ -104,13 +113,13 @@
   <div class="jp">フエンウィック</div>
   <div class="nm">__TOWN__</div>
   <div class="bar"><i></i></div>
-  <div class="msg">walking into town</div>
+  <div class="msg">walking in</div>
 </div>
 <div id="fail"></div>
 
 <div class="hud" id="top">
   <h1>__TOWN__</h1>
-  <div id="sub">you are here, somewhere</div>
+  <div id="sub">first person · you are here</div>
   <div id="line">
     <span>day <b id="day">—</b></span><span class="dot">·</span>
     <b id="time">—</b><span class="dot">·</span>
@@ -120,7 +129,7 @@
 </div>
 
 <div id="meta" class="hud">
-  <a href="/">map</a>
+  <a href="/map">map</a>
   <a href="/diary">diary</a>
   <a href="/mind">mind</a>
   <a href="/offerings">leave something</a>
@@ -143,12 +152,14 @@
   </div>
 </div>
 
+<div id="reticle" aria-hidden="true"></div>
+<div id="lookhint">click to look around · esc to let go</div>
+
 <div class="hud" id="controls">
   <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk
   <span class="sep">·</span><kbd>shift</kbd> run
-  <span class="sep">·</span><kbd>space</kbd> jump
-  <span class="sep">·</span>drag to look
-  <span class="sep">·</span>wheel to zoom
+  <span class="sep">·</span>mouse look
+  <span class="sep">·</span>esc release
 </div>
 
 <div id="toast"></div>

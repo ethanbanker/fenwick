@@ -3,7 +3,7 @@
   "host": "0.0.0.0",
   "creature": {
     "name": "Mochi",
-    "species": "owl",
+    "species": "cat",
     "pronouns": "he"
   },
   "town": {
@@ -15,11 +15,11 @@
     "seed": 1337
   },
   "brain": {
-    "provider": "gemini",
-    "model": "gemini-2.5-flash",
-    "fastModel": "gemini-2.5-flash-lite",
-    "visionModel": "gemini-2.5-flash",
-    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+    "provider": "openai",
+    "model": "deepseek-flash",
+    "fastModel": "deepseek-flash",
+    "visionModel": "deepseek-flash",
+    "baseUrl": "https://api.deepseek.com",
     "temperature": 1,
     "heartbeatMinMs": 4000,
     "heartbeatMaxMs": 15000,

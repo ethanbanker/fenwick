@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import type { Config } from '../config.ts';
+import type { BrainEndpoint, Config } from '../config.ts';
 import { extractJson } from '../util/text.ts';
 
 export type LlmCall = {
@@ -28,6 +28,8 @@ export type BudgetReport = {
   exhausted: boolean;
   lastError: string | null;
 };
+
+type Endpoint = BrainEndpoint & { label: string };
 
 export class Brain {
   private cfg: Config;
@@ -89,8 +91,33 @@ export class Brain {
     };
   }
 
+  private endpoints(call?: LlmCall): Endpoint[] {
+    const b = this.cfg.brain;
+    const primary: Endpoint = {
+      provider: b.provider,
+      apiKey: b.apiKey,
+      model: b.model,
+      fastModel: b.fastModel,
+      visionModel: b.visionModel,
+      baseUrl: b.baseUrl,
+      label: b.provider,
+    };
+    const f = b.fallback;
+    const distinct = f.apiKey && (f.provider !== b.provider || f.baseUrl !== b.baseUrl || f.model !== b.model);
+    const list: Endpoint[] = [primary];
+    if (distinct) list.push({ ...f, label: `${f.provider} fallback` });
+
+    // Only Gemini is assumed to accept image input. If a picture is attached,
+    // let the vision-capable endpoint go first even if it is the backup.
+    if (call?.images?.length) {
+      const rank = (e: Endpoint) => (e.provider === 'gemini' ? 0 : 1);
+      list.sort((a, b2) => rank(a) - rank(b2));
+    }
+    return list;
+  }
+
   get keyPresent(): boolean {
-    return Boolean(this.cfg.brain.apiKey);
+    return this.endpoints().some((e) => Boolean(e.apiKey));
   }
 
   /** True while he is sitting out a rate limit; no point calling the model. */
@@ -102,48 +129,64 @@ export class Brain {
   async complete(call: LlmCall): Promise<LlmResult> {
     const run = async (): Promise<LlmResult> => {
       const startedAt = Date.now();
-      const modelName = this.modelFor(call.model ?? 'quality');
+      const kind = call.model ?? 'quality';
+      const endpoints = this.endpoints(call);
+      const primaryName = this.modelFor(kind, endpoints[0]);
       const budget = this.report();
-      if (!this.cfg.brain.apiKey) {
-        return { ok: false, text: '', error: 'no-api-key', model: modelName, ms: 0 };
+      if (!this.keyPresent) {
+        return { ok: false, text: '', error: 'no-api-key', model: primaryName, ms: 0 };
       }
       if (budget.exhausted) {
-        return { ok: false, text: '', error: 'daily-budget-reached', model: modelName, ms: 0 };
+        return { ok: false, text: '', error: 'daily-budget-reached', model: primaryName, ms: 0 };
       }
       if (Date.now() < this.disabledUntil) {
-        return { ok: false, text: '', error: 'backing-off', model: modelName, ms: 0 };
+        return { ok: false, text: '', error: 'backing-off', model: primaryName, ms: 0 };
       }
       const since = Date.now() - this.lastCallAt;
       const minGap = this.cfg.brain.minSecondsBetweenCalls * 1000;
       if (since < minGap) await sleep(minGap - since);
 
-      let attempt = 0;
       let lastErr = '';
-      while (attempt < 3) {
-        attempt++;
-        this.lastCallAt = Date.now();
-        try {
-          const text =
-            this.cfg.brain.provider === 'gemini' ? await this.callGemini(modelName, call) : await this.callOpenAi(modelName, call);
-          this.callsToday += 1;
-          this.saveBudget();
-          this.lastError = null;
-          return { ok: true, text, model: modelName, ms: Date.now() - startedAt };
-        } catch (err) {
-          lastErr = (err as Error).message;
-          const retriable = /429|rate|quota|503|502|timeout|overloaded|EAI_AGAIN|fetch failed/i.test(lastErr);
-          if (!retriable || attempt >= 3) break;
-          await sleep(1500 * attempt + Math.random() * 800);
+      let lastModel = primaryName;
+      for (const endpoint of endpoints) {
+        if (!endpoint.apiKey) {
+          lastErr = lastErr || `${endpoint.label} has no api key`;
+          continue;
+        }
+        const modelName = this.modelFor(kind, endpoint);
+        lastModel = modelName;
+
+        // Two goes per endpoint: one immediate, one after a short wait. Then
+        // move down the chain, so a dead primary does not use the whole day.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          this.lastCallAt = Date.now();
+          try {
+            const text =
+              endpoint.provider === 'gemini'
+                ? await this.callGemini(endpoint, modelName, call)
+                : await this.callOpenAi(endpoint, modelName, call);
+            this.callsToday += 1;
+            this.saveBudget();
+            this.lastError = null;
+            return { ok: true, text, model: modelName, ms: Date.now() - startedAt };
+          } catch (err) {
+            const message = (err as Error).message;
+            lastErr = `${endpoint.label}: ${message}`;
+            const retriable = /429|rate|quota|503|502|timeout|overloaded|EAI_AGAIN|fetch failed/i.test(message);
+            if (!retriable || attempt >= 1) break;
+            await sleep(1500 + Math.random() * 800);
+          }
         }
       }
+
       this.callsToday += 1;
       this.saveBudget();
-      this.lastError = lastErr;
+      this.lastError = lastErr || 'all endpoints failed';
       if (/429|rate|quota|per.?day/i.test(lastErr)) {
-        // back off hard; reflex brain keeps him alive in the meantime
+        // both the primary and the backup are out of room; reflex keeps him alive
         this.disabledUntil = Date.now() + 20 * 60_000;
       }
-      return { ok: false, text: '', error: lastErr, model: modelName, ms: Date.now() - startedAt };
+      return { ok: false, text: '', error: this.lastError, model: lastModel, ms: Date.now() - startedAt };
     };
 
     const chained = this.queue.then(run, run);
@@ -158,14 +201,13 @@ export class Brain {
     return { ok: Boolean(data), data, raw: res.text, error: data ? undefined : 'could not parse json' };
   }
 
-  private modelFor(kind: 'quality' | 'fast' | 'vision'): string {
-    const b = this.cfg.brain;
+  private modelFor(kind: 'quality' | 'fast' | 'vision', endpoint: Endpoint): string {
     const remaining = this.report().remaining;
-    if (kind === 'vision') return b.visionModel || b.model;
-    if (kind === 'fast') return b.fastModel || b.model;
+    if (kind === 'vision') return endpoint.visionModel || endpoint.model;
+    if (kind === 'fast') return endpoint.fastModel || endpoint.model;
     // low reserve: downgrade quality calls
-    if (remaining <= b.reserveCalls) return b.fastModel || b.model;
-    return b.model;
+    if (remaining <= this.cfg.brain.reserveCalls) return endpoint.fastModel || endpoint.model;
+    return endpoint.model;
   }
 
   private imageParts(call: LlmCall): Array<{ mimeType: string; data: string }> {
@@ -182,9 +224,9 @@ export class Brain {
     return out;
   }
 
-  private async callGemini(model: string, call: LlmCall): Promise<string> {
-    const url = `${this.cfg.brain.baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(
-      this.cfg.brain.apiKey,
+  private async callGemini(endpoint: Endpoint, model: string, call: LlmCall): Promise<string> {
+    const url = `${endpoint.baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(
+      endpoint.apiKey,
     )}`;
     const parts: Array<Record<string, unknown>> = [{ text: call.user }];
     for (const img of this.imageParts(call)) {
@@ -227,8 +269,8 @@ export class Brain {
     return text;
   }
 
-  private async callOpenAi(model: string, call: LlmCall): Promise<string> {
-    const base = this.cfg.brain.baseUrl.replace(/\/$/, '');
+  private async callOpenAi(endpoint: Endpoint, model: string, call: LlmCall): Promise<string> {
+    const base = endpoint.baseUrl.replace(/\/$/, '');
     const url = base.endsWith('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
     const content: Array<Record<string, unknown>> = [{ type: 'text', text: call.user }];
     for (const img of this.imageParts(call)) {
@@ -246,7 +288,7 @@ export class Brain {
     };
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${this.cfg.brain.apiKey}` },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${endpoint.apiKey}` },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(90_000),
     });

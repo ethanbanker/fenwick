@@ -110,7 +110,7 @@ async function answerChat(obs: Observation, waiting: IncomingChat[]): Promise<vo
       `${brief()}\n\n` +
       'Somebody outside Fenwick is talking to you through a small rectangle. Answer them out loud, in your own voice, ' +
       'in one to three short sentences. You are not an assistant: no offers of help, no lists, no explaining what you are. ' +
-      'You are an owl standing wherever you happen to be standing. If they ask for something you cannot do, say so plainly.',
+      `You are ${/^[aeiou]/i.test(cfg.creature.species) ? 'an' : 'a'} ${cfg.creature.species} standing wherever you happen to be standing. If they ask for something you cannot do, say so plainly.`,
     user: [
       `Day ${obs.day}, ${obs.time}. Weather: ${obs.weather}.`,
       obs.place ? `You are at ${inlineName(obs.place.name)}.` : 'You are in the street.',
@@ -620,7 +620,10 @@ function adapt(obs: Observation, waiting: boolean): void {
 }
 
 async function main(): Promise<void> {
-  log(`starting. provider=${cfg.brain.provider} model=${cfg.brain.model} budget=${cfg.brain.maxCallsPerDay}/day`);
+  const backup = cfg.brain.fallback.apiKey ? `${cfg.brain.fallback.provider}/${cfg.brain.fallback.model}` : 'none';
+  log(
+    `starting. provider=${cfg.brain.provider} model=${cfg.brain.model} fallback=${backup} budget=${cfg.brain.maxCallsPerDay}/day`,
+  );
   if (!brain.keyPresent) {
     log('no API key found. He will live on reflexes until you add one to .env (see README).');
   }

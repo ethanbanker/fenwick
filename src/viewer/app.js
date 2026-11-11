@@ -535,7 +535,7 @@
 
   // ---------------------------------------------------------------- the creature
 
-  function drawOwl() {
+  function drawCat() {
     const p = project(shown.x, shown.y);
     const sx = Math.round(p.sx);
     const sy = Math.round(p.sy);
@@ -543,117 +543,166 @@
     const asleep = snap && snap.creature.asleep;
     const t = performance.now() / 1000;
     const facing = snap ? snap.creature.facing : 's';
-    const bob = asleep ? 1.5 + Math.sin(t * 1.2) * 0.5 : walking ? Math.sin(t * 9) * 1.1 : Math.sin(t * 1.6) * 0.45;
+    const bob = asleep ? 1 + Math.sin(t * 1.2) * 0.4 : walking ? Math.sin(t * 9) * 1.0 : Math.sin(t * 1.6) * 0.4;
 
-    // shadow
     bctx.fillStyle = 'rgba(0,0,0,0.3)';
     bctx.beginPath();
-    bctx.ellipse(sx, sy, asleep ? 9 : 7, asleep ? 4 : 3.2, 0, 0, Math.PI * 2);
+    bctx.ellipse(sx, sy, asleep ? 10 : 7, asleep ? 4 : 3, 0, 0, Math.PI * 2);
     bctx.fill();
 
-    const bodyTop = sy - (asleep ? 15 : 22) + bob;
-    const bodyH = asleep ? 14 : 20;
-    const bodyW = asleep ? 15 : 13;
     const cx = sx;
 
-    // tail / back
-    bctx.fillStyle = '#4a3323';
-    bctx.fillRect(cx - 5, sy - 7 + bob, 10, 5);
-
-    // body
-    bctx.fillStyle = '#6b4a33';
-    roundRect(bctx, cx - bodyW / 2, bodyTop, bodyW, bodyH, 4);
-    bctx.fill();
-
-    // belly
-    bctx.fillStyle = '#a98a66';
-    roundRect(bctx, cx - bodyW / 2 + 3, bodyTop + 6, bodyW - 6, bodyH - 8, 3);
-    bctx.fill();
-
-    // wings
-    bctx.fillStyle = '#553a26';
-    if (!asleep) {
-      bctx.fillRect(cx - bodyW / 2 - 1, bodyTop + 6, 2.5, 9);
-      bctx.fillRect(cx + bodyW / 2 - 1.5, bodyTop + 6, 2.5, 9);
-    }
-
-    if (!asleep) {
-      // feet
-      bctx.fillStyle = '#c9a15c';
-      const swing = walking ? Math.sin(t * 9) * 1.4 : 0;
-      bctx.fillRect(cx - 3 + swing, sy - 3, 2, 3);
-      bctx.fillRect(cx + 1 - swing, sy - 3, 2, 3);
-
-      // head
-      const hy = bodyTop - 2;
-      bctx.fillStyle = '#6b4a33';
+    if (asleep) {
+      // curled up, tail wrapped around the nose
+      bctx.fillStyle = '#2b2a27';
       bctx.beginPath();
-      bctx.arc(cx, hy, 6.2, 0, Math.PI * 2);
+      bctx.ellipse(cx, sy - 6 + bob, 10, 7, 0, 0, Math.PI * 2);
       bctx.fill();
-
-      // ear tufts
+      bctx.fillStyle = '#413d38';
       bctx.beginPath();
-      bctx.moveTo(cx - 6, hy - 3);
-      bctx.lineTo(cx - 7.5, hy - 8);
-      bctx.lineTo(cx - 2.6, hy - 5);
-      bctx.closePath();
+      bctx.ellipse(cx + 3, sy - 9 + bob, 5.2, 4.6, 0, 0, Math.PI * 2);
       bctx.fill();
-      bctx.beginPath();
-      bctx.moveTo(cx + 6, hy - 3);
-      bctx.lineTo(cx + 7.5, hy - 8);
-      bctx.lineTo(cx + 2.6, hy - 5);
-      bctx.closePath();
-      bctx.fill();
-
-      if (facing === 'n') {
-        // back of the head: no face
-        bctx.fillStyle = '#5d3f2b';
+      bctx.fillStyle = '#2b2a27';
+      for (const side of [-1, 1]) {
         bctx.beginPath();
-        bctx.arc(cx, hy + 1, 4.4, 0, Math.PI * 2);
-        bctx.fill();
-      } else {
-        const look = facing === 'e' ? 1.2 : facing === 'w' ? -1.2 : 0;
-        // face discs
-        bctx.fillStyle = '#d9c5a3';
-        bctx.beginPath();
-        bctx.arc(cx - 2.4 + look, hy, 3.1, 0, Math.PI * 2);
-        bctx.arc(cx + 2.4 + look, hy, 3.1, 0, Math.PI * 2);
-        bctx.fill();
-        // eyes
-        bctx.fillStyle = '#2a1d15';
-        const blink = Math.sin(t * 0.9 + 1) > 0.985 ? 0.6 : 2;
-        bctx.fillRect(Math.round(cx - 3.2 + look), Math.round(hy - blink / 2), 1.6, blink);
-        bctx.fillRect(Math.round(cx + 1.8 + look), Math.round(hy - blink / 2), 1.6, blink);
-        // beak
-        bctx.fillStyle = '#d8a24a';
-        bctx.beginPath();
-        bctx.moveTo(cx + look, hy + 2);
-        bctx.lineTo(cx - 1.4 + look, hy + 4.4);
-        bctx.lineTo(cx + 1.4 + look, hy + 4.4);
+        bctx.moveTo(cx + 3 + side * 3, sy - 12 + bob);
+        bctx.lineTo(cx + 3 + side * 4.6, sy - 17 + bob);
+        bctx.lineTo(cx + 3 + side * 1, sy - 14 + bob);
         bctx.closePath();
         bctx.fill();
       }
-    } else {
-      // asleep: closed eyes and a slow breath
-      bctx.fillStyle = '#d9c5a3';
-      bctx.beginPath();
-      bctx.arc(cx - 3, sy - 10 + bob, 2.8, 0, Math.PI * 2);
-      bctx.arc(cx + 3, sy - 10 + bob, 2.8, 0, Math.PI * 2);
-      bctx.fill();
-      bctx.strokeStyle = '#3a2a1e';
+      bctx.strokeStyle = '#d8a24b';
       bctx.lineWidth = 1;
       bctx.beginPath();
-      bctx.moveTo(cx - 4.4, sy - 10 + bob);
-      bctx.lineTo(cx - 1.6, sy - 10 + bob);
-      bctx.moveTo(cx + 1.6, sy - 10 + bob);
-      bctx.lineTo(cx + 4.4, sy - 10 + bob);
+      bctx.moveTo(cx + 1, sy - 10 + bob);
+      bctx.lineTo(cx + 3, sy - 10 + bob);
+      bctx.moveTo(cx + 5, sy - 10 + bob);
+      bctx.lineTo(cx + 7, sy - 10 + bob);
       bctx.stroke();
-      // z's
+      bctx.strokeStyle = '#2b2a27';
+      bctx.lineWidth = 3;
+      bctx.beginPath();
+      bctx.moveTo(cx - 8, sy - 5 + bob);
+      bctx.quadraticCurveTo(cx + 2, sy + 2, cx + 8, sy - 5 + bob);
+      bctx.stroke();
       bctx.fillStyle = 'rgba(238,226,208,0.5)';
       bctx.font = '6px ui-sans-serif, sans-serif';
       for (let i = 0; i < 3; i++) {
         const zt = (t * 0.5 + i * 0.33) % 1;
-        bctx.fillText('z', cx + 8 + zt * 6, sy - 16 - zt * 12);
+        bctx.fillText('z', cx + 10 + zt * 6, sy - 16 - zt * 12);
+      }
+      return;
+    }
+
+    const bodyTop = sy - 18 + bob;
+    const bodyW = 12;
+    const bodyH = 15;
+    const tailSide = facing === 'w' ? -1 : 1;
+
+    // tail, behind the body and swishing
+    bctx.strokeStyle = '#2b2a27';
+    bctx.lineWidth = 3.2;
+    bctx.lineCap = 'round';
+    bctx.beginPath();
+    const swish = Math.sin(t * 2.2) * 2.5;
+    bctx.moveTo(cx - tailSide * 2, sy - 8 + bob);
+    bctx.quadraticCurveTo(cx - tailSide * 10, sy - 11 + bob, cx - tailSide * 9, sy - 18 + bob + swish);
+    bctx.stroke();
+
+    // legs
+    bctx.fillStyle = '#232220';
+    const swing = walking ? Math.sin(t * 9) * 1.5 : 0;
+    bctx.fillRect(cx - 4 + swing, sy - 4, 2.4, 4);
+    bctx.fillRect(cx + 2 - swing, sy - 4, 2.4, 4);
+
+    // body and pale chest
+    bctx.fillStyle = '#2b2a27';
+    roundRect(bctx, cx - bodyW / 2, bodyTop, bodyW, bodyH, 5);
+    bctx.fill();
+    const lookX = facing === 'e' ? 1.1 : facing === 'w' ? -1.1 : 0;
+    bctx.fillStyle = '#c9bca6';
+    bctx.beginPath();
+    bctx.ellipse(cx + lookX * 0.6, bodyTop + 9, 3.2, 4.8, 0, 0, Math.PI * 2);
+    bctx.fill();
+
+    // collar and bell
+    bctx.fillStyle = '#7b2f2f';
+    bctx.fillRect(cx - 4.6, bodyTop + 2.2, 9.2, 1.7);
+    bctx.fillStyle = '#c9a24a';
+    bctx.beginPath();
+    bctx.arc(cx, bodyTop + 4.4, 1.2, 0, Math.PI * 2);
+    bctx.fill();
+
+    // head
+    const hy = bodyTop - 3.5;
+    const hx = cx + lookX;
+    bctx.fillStyle = '#2b2a27';
+    bctx.beginPath();
+    bctx.arc(hx, hy, 6.1, 0, Math.PI * 2);
+    bctx.fill();
+
+    // ears
+    bctx.beginPath();
+    bctx.moveTo(hx - 5.2, hy - 4.2);
+    bctx.lineTo(hx - 6.4, hy - 9.2);
+    bctx.lineTo(hx - 1.8, hy - 5.7);
+    bctx.closePath();
+    bctx.fill();
+    bctx.beginPath();
+    bctx.moveTo(hx + 5.2, hy - 4.2);
+    bctx.lineTo(hx + 6.4, hy - 9.2);
+    bctx.lineTo(hx + 1.8, hy - 5.7);
+    bctx.closePath();
+    bctx.fill();
+
+    if (facing === 'n') {
+      bctx.fillStyle = '#3b3733';
+      bctx.beginPath();
+      bctx.arc(hx, hy + 0.8, 4.3, 0, Math.PI * 2);
+      bctx.fill();
+    } else {
+      bctx.fillStyle = '#a86f66';
+      for (const side of [-1, 1]) {
+        bctx.beginPath();
+        bctx.moveTo(hx + side * 4.2, hy - 5.1);
+        bctx.lineTo(hx + side * 5.4, hy - 8.2);
+        bctx.lineTo(hx + side * 2.2, hy - 6.1);
+        bctx.closePath();
+        bctx.fill();
+      }
+
+      // amber eyes with a slit pupil
+      const blink = Math.sin(t * 0.9 + 1) > 0.985 ? 0.4 : 1;
+      for (const side of [-1, 1]) {
+        bctx.fillStyle = '#d8a24b';
+        bctx.beginPath();
+        bctx.arc(hx + side * 2.35, hy + 0.4, 1.9, 0, Math.PI * 2);
+        bctx.fill();
+        bctx.fillStyle = '#11120f';
+        bctx.fillRect(Math.round(hx + side * 2.35), Math.round(hy - 1.1 * blink), 0.8, Math.max(1, 2.2 * blink));
+      }
+
+      // muzzle, nose, whiskers
+      bctx.fillStyle = '#cfc0a4';
+      bctx.beginPath();
+      bctx.ellipse(hx + lookX * 0.4, hy + 3.5, 2.9, 1.9, 0, 0, Math.PI * 2);
+      bctx.fill();
+      bctx.fillStyle = '#a86f66';
+      bctx.beginPath();
+      bctx.moveTo(hx + lookX * 0.4, hy + 2.3);
+      bctx.lineTo(hx + lookX * 0.4 - 0.8, hy + 3.3);
+      bctx.lineTo(hx + lookX * 0.4 + 0.8, hy + 3.3);
+      bctx.closePath();
+      bctx.fill();
+      bctx.strokeStyle = 'rgba(220,210,190,.55)';
+      bctx.lineWidth = 0.5;
+      for (const side of [-1, 1]) {
+        for (let k = 0; k < 2; k++) {
+          bctx.beginPath();
+          bctx.moveTo(hx + lookX * 0.4 + side * 3, hy + 3 + k * 0.8);
+          bctx.lineTo(hx + lookX * 0.4 + side * 7, hy + 2 + k * 1.6);
+          bctx.stroke();
+        }
       }
     }
   }
@@ -839,7 +888,7 @@
 
     drawables.push({
       d: Math.floor(shown.x) + Math.floor(shown.y) + 0.75,
-      fn: drawOwl,
+      fn: drawCat,
     });
 
     drawables.sort((a, b) => a.d - b.d);

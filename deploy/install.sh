@@ -253,12 +253,13 @@ if [ ! -f "$ROOT/.env" ]; then
   chmod 600 "$ROOT/.env"
   say "created .env from the template"
 fi
-if grep -qE '^(GEMINI_API_KEY|LLM_API_KEY|OPENAI_API_KEY)=.+' "$ROOT/.env"; then
+if grep -qE '^(DEEPSEEK_API_KEY|GEMINI_API_KEY|LLM_API_KEY|OPENAI_API_KEY)=.+' "$ROOT/.env"; then
   say "an api key is set"
 else
   warn "no api key in $ROOT/.env"
   warn "he will still live (reflex brain: walking, eating, sleeping, judging offerings)"
-  warn "but he will not deliberate. get a free key: https://aistudio.google.com/apikey"
+  warn "but he will not deliberate. get a key: https://platform.deepseek.com/api_keys"
+  warn "or a free Gemini backup: https://aistudio.google.com/apikey"
   warn "then: nano $ROOT/.env   and re-run this script"
 fi
 [ -f "$ROOT/config.json" ] || { warn "config.json missing — it is part of the repo"; exit 1; }
@@ -283,7 +284,7 @@ UNIT_FILE="$UNIT_DIR/${SERVICE_NAME}.service"
 $SUDO mkdir -p "$UNIT_DIR"
 $SUDO tee "$UNIT_FILE" >/dev/null <<UNIT
 [Unit]
-Description=Fenwick — an owl who lives here
+Description=Fenwick — a cat who lives here
 Documentation=file://${ROOT}/README.md
 After=network-online.target
 Wants=network-online.target
