@@ -15,11 +15,11 @@
     "seed": 1337
   },
   "brain": {
-    "provider": "openai",
-    "model": "deepseek-flash",
-    "fastModel": "deepseek-flash",
-    "visionModel": "deepseek-flash",
-    "baseUrl": "https://api.deepseek.com",
+    "provider": "gemini",
+    "model": "gemini-flash-lite-latest",
+    "fastModel": "gemini-flash-lite-latest",
+    "visionModel": "gemini-flash-lite-latest",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
     "temperature": 1,
     "heartbeatMinMs": 4000,
     "heartbeatMaxMs": 15000,

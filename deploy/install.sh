@@ -258,9 +258,9 @@ if grep -qE '^(DEEPSEEK_API_KEY|GEMINI_API_KEY|GROQ_API_KEY|OPENROUTER_API_KEY|L
 else
   warn "no api key in $ROOT/.env"
   warn "he will still live (reflex brain: walking, eating, sleeping, judging offerings)"
-  warn "but he will not deliberate. get a paid DeepSeek key: https://platform.deepseek.com/api_keys"
-  warn "or a free backup, in this order: Groq https://console.groq.com/keys"
-  warn "  Gemini https://aistudio.google.com/apikey · OpenRouter https://openrouter.ai/settings/keys"
+  warn "but he will not deliberate. get a free Gemini key: https://aistudio.google.com/apikey"
+  warn "backups, in this order: Groq https://console.groq.com/keys"
+  warn "  OpenRouter https://openrouter.ai/settings/keys · paid DeepSeek https://platform.deepseek.com/api_keys"
   warn "then: nano $ROOT/.env   and re-run this script"
 fi
 [ -f "$ROOT/config.json" ] || { warn "config.json missing — it is part of the repo"; exit 1; }

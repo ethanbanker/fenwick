@@ -157,13 +157,14 @@ const DEFAULTS: Config = {
   town: { name: 'Fenwick' },
   sim: { tickHz: 20, dayLengthMinutes: 60, seed: 1337 },
   brain: {
-    // DeepSeek's API is OpenAI-compatible and serves deepseek-flash at this URL.
-    provider: 'openai',
+    // Gemini leads: strongest free model, and the only stage that reads images.
+    // DeepSeek Flash still takes the front of the chain when DEEPSEEK_API_KEY is set.
+    provider: 'gemini',
     apiKey: '',
-    model: 'deepseek-flash',
-    fastModel: 'deepseek-flash',
-    visionModel: 'deepseek-flash',
-    baseUrl: 'https://api.deepseek.com',
+    model: GEMINI_FALLBACK.model,
+    fastModel: GEMINI_FALLBACK.fastModel,
+    visionModel: GEMINI_FALLBACK.visionModel,
+    baseUrl: GEMINI_FALLBACK.baseUrl,
     temperature: 1.0,
     heartbeatMinMs: 4000,
     heartbeatMaxMs: 15000,
@@ -171,10 +172,10 @@ const DEFAULTS: Config = {
     minSecondsBetweenCalls: 6,
     reserveCalls: 40,
     cooldownMinutes: 20,
-    fallback: { ...GEMINI_FALLBACK },
+    fallback: { ...GROQ_FALLBACK },
     fallbacks: [
-      { ...GROQ_FALLBACK },
       { ...GEMINI_FALLBACK },
+      { ...GROQ_FALLBACK },
       { ...OPENROUTER_FALLBACK },
     ],
   },
@@ -256,21 +257,21 @@ export function loadConfig(): Config {
   }
   const fallbackFor = (name: string) => cfg.brain.fallbacks.find((f) => f.name === name)!;
 
-  if (env.GEMINI_API_KEY) {
-    cfg.brain.fallback.apiKey = env.GEMINI_API_KEY;
-    fallbackFor('gemini').apiKey = env.GEMINI_API_KEY;
-  }
+  // The legacy singular `fallback` is the Groq stage now, so only the named
+  // entry takes the Gemini key. GEMINI_* overrides follow the primary too.
+  const geminiLeads = cfg.brain.provider === 'gemini';
+  if (env.GEMINI_API_KEY) fallbackFor('gemini').apiKey = env.GEMINI_API_KEY;
   if (env.GEMINI_MODEL) {
-    cfg.brain.fallback.model = env.GEMINI_MODEL;
     fallbackFor('gemini').model = env.GEMINI_MODEL;
+    if (geminiLeads && !env.LLM_MODEL) cfg.brain.model = env.GEMINI_MODEL;
   }
   if (env.GEMINI_FAST_MODEL) {
-    cfg.brain.fallback.fastModel = env.GEMINI_FAST_MODEL;
     fallbackFor('gemini').fastModel = env.GEMINI_FAST_MODEL;
+    if (geminiLeads && !env.LLM_FAST_MODEL) cfg.brain.fastModel = env.GEMINI_FAST_MODEL;
   }
   if (env.GEMINI_VISION_MODEL) {
-    cfg.brain.fallback.visionModel = env.GEMINI_VISION_MODEL;
     fallbackFor('gemini').visionModel = env.GEMINI_VISION_MODEL;
+    if (geminiLeads && !env.LLM_VISION_MODEL) cfg.brain.visionModel = env.GEMINI_VISION_MODEL;
   }
 
   if (env.GROQ_API_KEY) fallbackFor('groq').apiKey = env.GROQ_API_KEY;

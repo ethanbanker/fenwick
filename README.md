@@ -33,27 +33,28 @@ no third-person camera. To put him on the machine that stays on, skip to
 
 ### The one thing you have to do: get a key
 
-The brain is a chain, and you only need one key. **DeepSeek Flash** is the optional
-paid primary. The free backups are **Groq**, **Gemini**, and OpenRouter's
-**free-models router**, ordered by free daily request allowance, highest first:
+The brain is a chain, and you only need one key. **Gemini** leads: it is the strongest
+of the free options, and the only stage that can look at a picture. Behind it sit
+**Groq** and OpenRouter's **free-models router**:
 
-1. DeepSeek (optional, paid): <https://platform.deepseek.com/api_keys>
+1. Gemini free tier (project-specific quota): <https://aistudio.google.com/apikey>
 2. Groq free tier (1,000 req/day): <https://console.groq.com/keys>
-3. Gemini free tier (project-specific quota): <https://aistudio.google.com/apikey>
-4. OpenRouter free models (50 req/day without credits): <https://openrouter.ai/settings/keys>
+3. OpenRouter free models (50 req/day without credits): <https://openrouter.ai/settings/keys>
+4. DeepSeek Flash (optional, paid — takes the front of the chain if you add a key):
+   <https://platform.deepseek.com/api_keys>
 
 ```
-DEEPSEEK_API_KEY=your-key-here
-GROQ_API_KEY=your-free-key
 GEMINI_API_KEY=your-free-key
+GROQ_API_KEY=your-free-key
 OPENROUTER_API_KEY=your-free-key
+DEEPSEEK_API_KEY=your-key-here
 ```
 
 If a provider is rate-limited or reports a daily quota, it is skipped for 20 minutes
 and the next endpoint is tried. OpenRouter is pinned to `openrouter/free`, so it never
-falls through to a paid model. With no DeepSeek key, Groq leads the free chain when
-its key is present; otherwise Gemini is used. The 2,000-call daily ceiling is shared
-by the whole chain; provider quotas normally bind long before it.
+falls through to a paid model. Gemini leads whenever `GEMINI_API_KEY` is set; without
+it Groq does. The 2,000-call daily ceiling is shared by the whole chain; provider
+quotas normally bind long before it.
 
 **Without either key he is not broken** — he falls back to a reflex brain and keeps
 living: walking, eating, sleeping, and judging what you leave him. He just stops
@@ -75,10 +76,10 @@ him under systemd, and prints the address. The defaults (1 core, 1 GB, 8 GB disk
 take two keypresses; **advanced** lets you set the hostname, resources, storage, bridge,
 a static IP and the root password.
 
-It asks for a Gemini key on the way, which works as one of the free backups. Add a
-`DEEPSEEK_API_KEY` to `/opt/fenwick/.env` afterwards to make Flash the primary, or add
-`GROQ_API_KEY` to put Groq ahead of Gemini. Leaving both blank is fine — he lives on
-reflexes until you add one, and it tells you how.
+It asks for a Gemini key on the way, which is the primary brain. Add a `GROQ_API_KEY`
+to `/opt/fenwick/.env` afterwards for a second free tier behind it, or a
+`DEEPSEEK_API_KEY` to make paid Flash the primary. Leaving both blank is fine — he
+lives on reflexes until you add one, and it tells you how.
 
 `ct/fenwick.sh` runs on the host. `install/fenwick-install.sh` runs inside the container,
 then hands over to `deploy/install.sh`.
@@ -367,11 +368,12 @@ one. He only falls back to reflexes when every keyed endpoint is cooling or the 
 
 ### Using a different model
 
-The default chain is DeepSeek `deepseek-flash` (optional, paid), then Groq
-`openai/gpt-oss-120b`, Gemini (`gemini-flash-lite-latest`), and OpenRouter
-`openrouter/free`. The Gemini alias follows Google's current stable Flash-Lite
-model, so a retired model does not strand him. Set `GEMINI_MODEL=gemini-flash-latest`
-to opt into Flash quality when capacity allows. The free stages need only
+The default chain is Gemini (`gemini-flash-lite-latest`), then Groq
+`openai/gpt-oss-120b`, then OpenRouter `openrouter/free`. DeepSeek `deepseek-flash`
+(optional, paid) takes the front of the chain when `DEEPSEEK_API_KEY` is set. The
+Gemini alias follows Google's current stable Flash-Lite model, so a retired model
+does not strand him. Set `GEMINI_MODEL=gemini-flash-latest` to opt into Flash quality
+when capacity allows; it applies to the primary as well. The free stages need only
 `GROQ_API_KEY`, `GEMINI_API_KEY`, and/or `OPENROUTER_API_KEY`; model names need no
 changing. If Freebuff ever ships a public headless API, it would be another
 OpenAI-compatible entry here, but it does not have one today and this project does
@@ -406,7 +408,7 @@ slower thinking and no vision unless you pull a vision model. Set
 | `sim.tickHz` | simulation tick rate. 20 is plenty. |
 | `sim.seed` | the town layout is deterministic from this. |
 | `brain.model` / `fastModel` / `visionModel` | which models do which job |
-| `brain.fallbacks` | ordered backup endpoint array: Groq, Gemini, then OpenRouter free |
+| `brain.fallbacks` | ordered fallback chain: Gemini, Groq, then OpenRouter free |
 | `brain.cooldownMinutes` | how long a provider is skipped after a 429/quota (default 20) |
 | `brain.maxCallsPerDay` | hard daily ceiling across the whole chain (default 2000) |
 | `memory.slotsPerSection` / `halfLifeDays` | how much he can hold, how fast it fades |

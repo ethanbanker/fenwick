@@ -380,9 +380,9 @@ STORAGE=${STORAGE:-$(rootdir_storages | head -1)}
 
 API_KEY=$(ask "Model key" "Paste a free Gemini API key for the backup brain, or leave this empty.
 
-He runs on DeepSeek Flash first, then free backups in order: Groq, Gemini,
-OpenRouter. This installer writes the Gemini key now; add GROQ_API_KEY to .env
-afterwards to put Groq first, or DEEPSEEK_API_KEY to make Flash primary.
+He runs on Gemini first, then free backups in order: Groq, OpenRouter. This
+installer writes the Gemini key now; add GROQ_API_KEY to .env for a second free
+tier behind it, or DEEPSEEK_API_KEY to make paid Flash primary.
 Free Gemini key, no card: https://aistudio.google.com/apikey
 
 Leave empty to add a key later." "") || API_KEY=""
