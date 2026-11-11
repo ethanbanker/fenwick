@@ -147,7 +147,9 @@ const GROQ_FALLBACK: BrainEndpoint = {
   provider: 'openai',
   apiKey: '',
   model: 'openai/gpt-oss-120b',
-  fastModel: 'openai/gpt-oss-20b',
+  // 20B rejects response_format with a 400, so the fast tier stays on 120B.
+  // The 20B stage below runs without JSON mode instead.
+  fastModel: 'openai/gpt-oss-120b',
   visionModel: 'openai/gpt-oss-120b',
   baseUrl: 'https://api.groq.com/openai/v1',
 };
@@ -171,6 +173,10 @@ const GROQ_20B_FALLBACK: BrainEndpoint = {
   fastModel: 'openai/gpt-oss-20b',
   visionModel: 'openai/gpt-oss-20b',
   baseUrl: 'https://api.groq.com/openai/v1',
+  // Groq validates JSON mode server-side for this model and rejects its own
+  // output (`json_validate_failed`). The prompt still asks for JSON and
+  // extractJson tolerates prose, so turn the format flag off here.
+  jsonMode: false,
 };
 
 const OPENROUTER_FALLBACK: BrainEndpoint = {
