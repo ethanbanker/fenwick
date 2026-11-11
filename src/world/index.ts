@@ -519,6 +519,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // walkable third person: the same town, with Mochi tracked live inside it
+    if (p === '/walk' || p === '/walk/') {
+      const html = fs
+        .readFileSync(path.join(ROOT, 'src', 'viewer', 'walk.html'), 'utf8')
+        .replaceAll('__CREATURE__', cfg.creature.name)
+        .replaceAll('__TOWN__', cfg.town.name);
+      sendHtml(res, 200, html);
+      return;
+    }
+
     const pageRoutes: Record<string, PageKind> = {
       '/diary': 'diary',
       '/memories': 'memories',

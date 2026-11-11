@@ -399,6 +399,10 @@ ensure_template
 create_ct
 install_inside
 
+# the address captured at creation can be stale by the time the install ends
+# (a DHCP lease arrives late), and this is the only address the user is given
+ct_ip=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}') || true
+
 cat <<EOF
 
 ${G}  ✓ Fenwick is installed and running.${O}

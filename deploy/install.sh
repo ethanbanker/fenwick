@@ -238,8 +238,11 @@ else
   }
 fi
 find_node
-# resolve node for the rest of the script even when it was already installed
-[ -n "${NODE_BIN:-}" ] && [ -x "$NODE_BIN" ] || link_node
+# resolve node for the rest of the script even when it was already installed;
+# this used to call a link_node helper that was never defined, which failed as
+# "command not found" at the worst possible moment instead of saying anything
+# useful about node
+find_node || require_node
 
 # ---------------------------------------------------------------------------
 # 2. His key.

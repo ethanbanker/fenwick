@@ -7,6 +7,7 @@ import { evolvePersona, loadPersona, personaBrief, type PersonaSheet } from './p
 import { appendLog, gc, hasDiary, readLog, writeDiaryEntry } from './diary.ts';
 import { browseSession } from './browse.ts';
 import { reflexDecision, type Decision } from './reflex.ts';
+import { startDiscord, type IncomingChat } from './discord.ts';
 import type { InspectionVerdict, ModelDecision, Observation } from './types.ts';
 
 const cfg = loadConfig();
@@ -16,6 +17,7 @@ let persona: { baseline: PersonaSheet; current: PersonaSheet } = loadPersona(cfg
 
 const BASE = `http://127.0.0.1:${cfg.port}`;
 const NAME = cfg.creature.name;
+const discord = startDiscord(cfg, log);
 
 let lastEventId = 0;
 let lastFinishedHandled = 0;
@@ -23,6 +25,7 @@ let lastObs: Observation | null = null;
 let firstBeat = true;
 let heartbeat = cfg.brain.heartbeatMaxMs;
 let workingMemory: string[] = [];
+const chatHistory: string[] = [];
 let lastDay = 0;
 let lastDiaryDay = 0;
 let decisions = 0;
@@ -86,6 +89,67 @@ function remember(thought: string): void {
 
 function workingDigest(): string {
   return workingMemory.length ? workingMemory.map((w) => `- ${w}`).join('\n') : '(nothing on his mind)';
+}
+
+// ---------------------------------------------------------------- talking to people
+
+async function answerChat(obs: Observation, waiting: IncomingChat[]): Promise<void> {
+  const last = waiting[waiting.length - 1];
+  for (const m of waiting) appendLog(cfg, obs.day, `[${obs.time}] ${m.from} (discord): ${oneLine(m.text, 200)}`);
+
+  if (!brain.keyPresent || brain.report().exhausted || brain.coolingDown) {
+    await discord.say(
+      'Mochi is out of words for today — the model budget is spent. He will answer again after midnight UTC.',
+      last.channelId,
+    );
+    return;
+  }
+
+  const res = await brain.complete({
+    system:
+      `${brief()}\n\n` +
+      'Somebody outside Fenwick is talking to you through a small rectangle. Answer them out loud, in your own voice, ' +
+      'in one to three short sentences. You are not an assistant: no offers of help, no lists, no explaining what you are. ' +
+      'You are an owl standing wherever you happen to be standing. If they ask for something you cannot do, say so plainly.',
+    user: [
+      `Day ${obs.day}, ${obs.time}. Weather: ${obs.weather}.`,
+      obs.place ? `You are at ${inlineName(obs.place.name)}.` : 'You are in the street.',
+      obs.creature.action ? `You are in the middle of: ${obs.creature.action.label}.` : 'You are not doing anything in particular.',
+      `You are carrying ${obs.creature.inventory.food} food and ${obs.creature.inventory.coins} coins.`,
+      '',
+      'WHAT YOU REMEMBER:',
+      memory.digest(obs.day, 10),
+      '',
+      'THE CONVERSATION SO FAR:',
+      chatHistory.length ? chatHistory.join('\n') : '(nobody has spoken to you before)',
+      '',
+      `${last.from} says: "${oneLine(last.text, 400)}"`,
+      '',
+      'Reply with what you say out loud. No stage directions, no quotation marks.',
+    ].join('\n'),
+    model: 'fast',
+    maxTokens: 220,
+    temperature: 1.0,
+  });
+
+  if (!res.ok || !res.text.trim()) {
+    log(`could not answer ${last.from}: ${res.error}`);
+    appendLog(cfg, obs.day, `[${obs.time}] (could not answer ${last.from})`);
+    return;
+  }
+
+  const reply = res.text.trim().replace(/^["“]|["”]$/g, '').slice(0, 900);
+  if (!(await discord.say(reply, last.channelId))) return;
+
+  log(`answered ${last.from} on discord: ${oneLine(reply, 90)}`);
+  remember(`${last.from} spoke to me; I said ${oneLine(reply, 60)}`);
+  appendLog(cfg, obs.day, `[${obs.time}] I said: ${oneLine(reply, 240)}`);
+  chatHistory.push(`${last.from}: ${oneLine(last.text, 160)}\n${NAME}: ${oneLine(reply, 200)}`);
+  while (chatHistory.length > 6) chatHistory.shift();
+  memory.add('people', `${last.from} talks to me through discord. They said: "${oneLine(last.text, 80)}"`, {
+    strength: 0.5,
+    day: obs.day,
+  });
 }
 
 // ---------------------------------------------------------------- offering judgement
@@ -336,8 +400,12 @@ async function dayBoundary(obs: Observation): Promise<void> {
       // whether it worked or not, do not try again this settlement: a failed
       // diary must not turn into a call every heartbeat
       lastDiaryDay = endedDay;
-      if (entry.ok) log(`wrote the diary for day ${endedDay}: "${oneLine(entry.text, 80)}"`);
-      else log(`could not write the diary for day ${endedDay}: ${entry.error}`);
+      if (entry.ok) {
+        log(`wrote the diary for day ${endedDay}: "${oneLine(entry.text, 80)}"`);
+        if (cfg.discord.announceDiaries) void discord.say(`**day ${endedDay}**\n${entry.text}`);
+      } else {
+        log(`could not write the diary for day ${endedDay}: ${entry.error}`);
+      }
     } else {
       lastDiaryDay = endedDay;
       if (logText.trim()) log(`day ${endedDay} went unwritten (no brain available to write it)`);
@@ -468,6 +536,17 @@ async function beat(): Promise<void> {
 
   const remaining = obs.creature.action?.remainingMs ?? 0;
   const idle = !obs.creature.action;
+
+  // somebody is talking to him: answer them before he decides anything else
+  if (idle && !obs.creature.asleep) {
+    const waiting = discord.drain(3);
+    if (waiting.length) {
+      await answerChat(obs, waiting);
+      lastObs = obs;
+      heartbeat = cfg.brain.heartbeatMinMs;
+      return;
+    }
+  }
 
   // nothing to decide: he is in the middle of something. He finishes what he is
   // doing — the world has no concept of dropping a task half-way, so trying to

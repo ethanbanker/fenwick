@@ -304,10 +304,16 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
     if (spec.id === 'go_to' || spec.id === 'inspect') continue;
     if (spec.places.length && (!here || !spec.places.includes(here))) continue;
     if (spec.id === 'stargaze' && !isNight(state)) continue;
-    if (spec.id === 'eat' && c.needs.hunger < 0.12) continue;
+    if (spec.id === 'eat') {
+      // never offer a meal he cannot pay for. startAction refuses it, and a
+      // refused action comes straight back on the next heartbeat: that is a
+      // loop, and it spent a whole day's model budget on 6,000 refusals.
+      if (c.needs.hunger < 0.12) continue;
+      const canEat = here === 'nest' ? c.inventory.food >= 1 : c.inventory.coins >= 1 || c.inventory.food >= 1;
+      if (!canEat) continue;
+    }
     if (spec.id === 'drink' && c.inventory.coins < 1) continue;
     if (spec.id === 'groom' && c.inventory.coins < 1) continue;
-    if (spec.id === 'eat' && here === 'nest' && c.inventory.food < 1) continue;
     const cd = c.cooldowns[spec.id] ?? 0;
     if (cd > ctx.now) continue;
     if (spec.id === 'sleep' && state.creature.asleep) continue;

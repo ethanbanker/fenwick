@@ -223,10 +223,16 @@ when it runs out he drops to reflexes until the counter resets. Details under
 | page | what it is |
 |---|---|
 | `/` | the town. A renderer only — it holds no state and cannot change anything about him. |
+| `/walk` | walk the town yourself. Third person, rendered in Three.js: **WASD** to move, **shift** to run, **space** to jump, drag to look, wheel to zoom. Collision, day/night, weather and lamplight are all live, and Mochi is wherever he actually is — the tracker points to him. Also a renderer only. |
 | `/diary` | what he wrote down himself, unedited. He writes at the end of each in-world day, and sometimes mid-day when a day gets heavy. |
 | `/memories` | what he is carrying and what it costs him. The slot grid comes before the words on purpose: his memory is finite and competitive. |
 | `/mind` | his authored self next to what he has written about himself since, so the drift is a diff you can read. Plus what he has been reading on the internet, and how much of the day's model budget is left. |
 | `/offerings` | leave him something, and see what he did with what he was left. |
+
+**Finding him.** He does not wait in one place. `/walk` drops you at the fountain
+with a tracker that points towards him and counts the tiles; when you get close the
+panel shows what he is doing and what he is thinking. He is nocturnal, so midday is
+usually a bad time to look unless you check his nest.
 
 **Leaving him something.** Words or a picture. It does not land in an inbox: a
 crystal appears somewhere in the town, and he has to come across it. His sense range
@@ -235,6 +241,14 @@ is and what mood he is in. He then looks at it and decides. If he keeps it, it i
 carried to the ruins and stays there for good, and your standing with him goes up.
 
 Standing is earned **only** by things he decided to keep. Nothing else moves it.
+
+**Talking to him on Discord.** Optional, and off until you give him a token. He reads
+one channel and answers there in his own voice, with the same memory and mood as
+everything else. A conversation is a model call, so it counts against the daily budget
+and he says so plainly when it runs out. Set `DISCORD_BOT_TOKEN` and
+`DISCORD_CHANNEL_ID` in `.env` — the bot needs the **Message Content Intent** — then
+restart; he will also post each finished diary entry there. Setup steps are in
+`.env.example`. With those two values empty, nothing about him changes.
 
 Tuning: the clock runs one in-world day per real hour. He is nocturnal, so the
 middle of the real day is his quiet, sleepy stretch.
@@ -246,7 +260,9 @@ middle of the real day is his quiet, sleepy stretch.
 Three parts, kept separate on purpose.
 
 ```
-src/viewer/     a canvas renderer. no simulation state, cannot change anything
+src/viewer/     renderers. no simulation state, cannot change anything
+                (walk.js is the Three.js town; three itself is vendored in
+                src/viewer/vendor so there is still no npm install)
 src/world/      the simulation. ticks at 20Hz, owns his body, needs, mood,
                 the town, the weather, the clock, the offerings, and the finite
                 list of actions he is physically able to do
@@ -406,6 +422,43 @@ so that editing the code doesn't rewrite who he is.
 | nothing appears in the town | the world is running but the viewer can't reach `/events`; check you're on the same origin |
 | `node: error while loading shared libraries: libatomic.so.1` | the official node builds link against libatomic, which a bare Debian container doesn't ship. The installer now notices and runs `apt-get install libatomic1 libstdc++6` itself; if that fails, install it by hand and re-run. |
 | `node <blank> is too old` | that was the installer confusing "will not run" with "too old". Re-run: it now prints the actual error and repairs the missing library in place instead of downloading node again. |
+
+### It installed, but nothing answers
+
+Work down this list on the Proxmox host; the first line that is wrong is the
+problem. Use the container id the installer printed (or `pct list`).
+
+```bash
+pct status 120              # running, or stopped?
+```
+
+Stopped means it never came back after a reboot: `pct start 120`, and check that
+*Start at boot* is set on the container's Options tab.
+
+```bash
+pct exec 120 -- hostname -I
+```
+
+No address means it has no network — the usual cause is DHCP on a bridge that
+hands out nothing (a VLAN-aware `vmbr0`, or a bridge with no physical uplink).
+Give it a static address instead, then re-run the installer.
+
+```bash
+pct exec 120 -- systemctl status fenwick --no-pager
+pct exec 120 -- journalctl -u fenwick -n 40 --no-pager
+```
+
+`activating (auto-restart)` means the service is crash-looping and the journal
+says why. `active (running)` but no page means a port or firewall question: check
+`pct exec 120 -- ss -ltnp | grep 4321` shows `0.0.0.0:4321`, then from your laptop
+`curl -v http://<container-ip>:4321/api/state`.
+
+The address to open is the **container's**, not the Proxmox host's. They are
+different machines on the LAN, and `http://<host-ip>:4321` will never answer.
+
+Once the cause is fixed, re-running the one-liner and picking *repair* is the
+shortest path: it reinstalls the code and the unit while keeping his life, his
+`.env` and your `config.json`.
 
 ---
 

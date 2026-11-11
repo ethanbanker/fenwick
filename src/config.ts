@@ -49,6 +49,14 @@ export type Config = {
     spawnRadiusTiles: number;
     senseRadiusTiles: number;
   };
+  discord: {
+    /** Bot token from the Discord developer portal. Empty means the bridge is off. */
+    token: string;
+    /** The channel he reads and speaks in. */
+    channelId: string;
+    /** Post each finished diary entry to that channel. */
+    announceDiaries: boolean;
+  };
   browse: {
     enabled: boolean;
     allowSearch: boolean;
@@ -122,6 +130,7 @@ const DEFAULTS: Config = {
     spawnRadiusTiles: 9,
     senseRadiusTiles: 3,
   },
+  discord: { token: '', channelId: '', announceDiaries: true },
   browse: {
     enabled: true,
     allowSearch: true,
@@ -162,6 +171,12 @@ export function loadConfig(): Config {
   if (env.LLM_API_KEY) cfg.brain.apiKey = env.LLM_API_KEY;
   else if (cfg.brain.provider === 'gemini' && env.GEMINI_API_KEY) cfg.brain.apiKey = env.GEMINI_API_KEY;
   else if (env.OPENAI_API_KEY) cfg.brain.apiKey = env.OPENAI_API_KEY;
+
+  if (env.DISCORD_BOT_TOKEN) cfg.discord.token = env.DISCORD_BOT_TOKEN;
+  if (env.DISCORD_CHANNEL_ID) cfg.discord.channelId = env.DISCORD_CHANNEL_ID;
+  if (env.DISCORD_ANNOUNCE_DIARIES === '0' || env.DISCORD_ANNOUNCE_DIARIES === 'false') {
+    cfg.discord.announceDiaries = false;
+  }
 
   cfg.dataDir = path.resolve(ROOT, cfg.dataDir);
   return cfg;

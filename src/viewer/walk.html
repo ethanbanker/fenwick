@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080a09">
+<title>__CREATURE__ — walk the town</title>
+<meta name="description" content="Walk through __TOWN__ yourself and find __CREATURE__.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d0f0d'/%3E%3Ccircle cx='11' cy='13' r='4.2' fill='%23e2b45c'/%3E%3Ccircle cx='21' cy='13' r='4.2' fill='%23e2b45c'/%3E%3Cpath d='M16 18l3.2 5.4h-6.4z' fill='%23d99a47'/%3E%3C/svg%3E">
+<link rel="modulepreload" href="/vendor/three.module.min.js">
+<style>
+  :root{
+    --ink:#efe6d8; --dim:#a8998a; --faint:#6f635a;
+    --amber:#e2b45c; --line:rgba(238,226,208,.14);
+    --panel:rgba(14,16,14,.62);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#080a09;color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;outline:none}
+  #scene.drag{cursor:grabbing}
+
+  .hud{position:fixed;z-index:10;pointer-events:none;text-shadow:0 1px 5px rgba(0,0,0,.8)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+
+  #top{top:16px;left:18px;display:flex;flex-direction:column;gap:4px;max-width:70vw}
+  #top h1{margin:0;font-family:ui-serif,Georgia,"Times New Roman",serif;font-weight:500;
+    font-size:20px;letter-spacing:.07em}
+  #sub{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint)}
+  #line{margin-top:3px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+  #line b{color:var(--amber);font-weight:500}
+  #line .dot{opacity:.4;padding:0 3px}
+
+  #meta{top:16px;right:18px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:46vw}
+  #meta a{pointer-events:auto;font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;
+    color:var(--dim);text-decoration:none;padding:6px 10px;border:1px solid var(--line);
+    border-radius:999px;background:rgba(16,18,16,.55);transition:.15s;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  #meta a:hover{color:var(--ink);border-color:rgba(226,180,92,.5)}
+
+  #tracker{position:fixed;z-index:11;left:18px;bottom:18px;width:236px;padding:13px 14px 12px;
+    pointer-events:none}
+  #tracker .cap{font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint)}
+  #tracker .row{display:flex;align-items:center;gap:11px;margin-top:9px}
+  #arrow{width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);border-radius:50%;background:rgba(226,180,92,.07);transition:transform .08s linear}
+  #arrow svg{width:15px;height:15px;fill:var(--amber);opacity:.9}
+  #dist{font-family:ui-serif,Georgia,serif;font-size:19px;line-height:1.1;color:var(--ink)}
+  #dist span{font-family:ui-sans-serif,sans-serif;font-size:9.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--faint);margin-left:4px}
+  #mstate{font-size:10px;letter-spacing:.08em;color:var(--dim);margin-top:2px}
+  #near{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:none}
+  #near.on{display:block}
+  #near .lbl{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber)}
+  #near .thought{margin-top:5px;font-family:ui-serif,Georgia,serif;font-style:italic;
+    font-size:13px;line-height:1.45;color:#eadfce}
+  #near .thought:empty{display:none}
+
+  #controls{bottom:18px;left:50%;transform:translateX(-50%);text-align:center;
+    font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
+    max-width:calc(100vw - 560px);line-height:1.9}
+  #controls kbd{font-family:inherit;color:var(--dim);border:1px solid var(--line);
+    border-radius:4px;padding:1px 5px;margin:0 1px;background:rgba(255,255,255,.03)}
+  #controls .sep{opacity:.35;padding:0 5px}
+
+  #toast{position:fixed;z-index:12;top:20%;left:50%;transform:translate(-50%,8px);
+    font-family:ui-serif,Georgia,serif;font-size:clamp(22px,3.4vw,38px);letter-spacing:.03em;
+    color:#fff6e6;text-shadow:0 2px 22px rgba(0,0,0,.9);opacity:0;pointer-events:none;
+    transition:opacity .8s ease,transform .8s ease;white-space:nowrap}
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+
+  #loading{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;
+    background:radial-gradient(120% 90% at 50% 45%,#1b201b 0%,#0e120e 60%,#080a09 100%);
+    transition:opacity .9s ease,visibility .9s}
+  #loading.gone{opacity:0;visibility:hidden}
+  #loading .jp{font-size:clamp(30px,6vw,54px);letter-spacing:.2em;color:rgba(255,249,242,.9);
+    font-family:"Hiragino Sans","Yu Gothic",sans-serif;margin-left:.2em}
+  #loading .nm{font-family:ui-serif,Georgia,serif;font-size:11px;letter-spacing:.42em;
+    text-transform:uppercase;color:rgba(238,226,208,.5);margin-top:-10px}
+  #loading .bar{width:min(200px,46vw);height:2px;border-radius:2px;background:rgba(238,226,208,.13);overflow:hidden}
+  #loading .bar i{display:block;height:100%;width:30%;background:rgba(226,180,92,.75);
+    animation:load 1.15s ease-in-out infinite}
+  @keyframes load{0%{transform:translateX(-110%)}100%{transform:translateX(360%)}}
+  #loading .msg{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(238,226,208,.4)}
+  #fail{position:fixed;inset:0;z-index:41;display:none;align-items:center;justify-content:center;
+    text-align:center;padding:32px;background:#0b0d0b;color:var(--dim);font-size:13px;line-height:1.8}
+
+  @media (max-width:860px){
+    #controls{display:none}
+    #tracker{width:196px;padding:10px 11px}
+    #dist{font-size:16px}
+    #meta a{font-size:8.5px;padding:5px 8px}
+    #top h1{font-size:17px}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" tabindex="0"></canvas>
+
+<div id="loading">
+  <div class="jp">フエンウィック</div>
+  <div class="nm">__TOWN__</div>
+  <div class="bar"><i></i></div>
+  <div class="msg">walking into town</div>
+</div>
+<div id="fail"></div>
+
+<div class="hud" id="top">
+  <h1>__TOWN__</h1>
+  <div id="sub">you are here, somewhere</div>
+  <div id="line">
+    <span>day <b id="day">—</b></span><span class="dot">·</span>
+    <b id="time">—</b><span class="dot">·</span>
+    <span id="weather">—</span><span class="dot">·</span>
+    <span id="place">—</span>
+  </div>
+</div>
+
+<div id="meta" class="hud">
+  <a href="/">map</a>
+  <a href="/diary">diary</a>
+  <a href="/mind">mind</a>
+  <a href="/offerings">leave something</a>
+</div>
+
+<div id="tracker" class="panel">
+  <div class="cap">finding __CREATURE__</div>
+  <div class="row">
+    <div id="arrow">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8 20.4 21 12 16.2 3.6 21Z"/></svg>
+    </div>
+    <div>
+      <div id="dist">—</div>
+      <div id="mstate">looking for him</div>
+    </div>
+  </div>
+  <div id="near">
+    <div class="lbl" id="near-label">close by</div>
+    <div class="thought" id="near-thought"></div>
+  </div>
+</div>
+
+<div class="hud" id="controls">
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk
+  <span class="sep">·</span><kbd>shift</kbd> run
+  <span class="sep">·</span><kbd>space</kbd> jump
+  <span class="sep">·</span>drag to look
+  <span class="sep">·</span>wheel to zoom
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // If the module itself fails to load, no code inside it can explain why.
+  window.addEventListener('error', (e) => {
+    const fail = document.getElementById('fail');
+    if (!fail) return;
+    fail.style.display = 'flex';
+    fail.textContent = 'Could not start the 3D town: ' + (e.message || 'a script failed to load') + '.';
+    document.getElementById('loading').classList.add('gone');
+  }, true);
+</script>
+<script type="module" src="/walk.js"></script>
+</body>
+</html>
