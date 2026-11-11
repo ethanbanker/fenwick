@@ -1,6 +1,7 @@
 # Fenwick
 
-An autonomous cat called **Mochi** who lives in a small town on your network. He has
+An autonomous, panther-sized Siamese cat called **Mochi** who lives in a neon-soaked
+neo-city on your network. He has
 needs that drift whether or not anyone is watching, a mood that responds to what
 happens to him, and a brain that decides what he does next every few seconds. He
 eats, sleeps, gets bored, walks to the laundrette, browses the real internet, keeps
@@ -25,7 +26,8 @@ cp .env.example .env      # then paste a free API key into it (see below)
 node src/start.ts
 ```
 
-Open <http://localhost:4321>. You walk straight into the town — no menu, no avatar,
+Open <http://localhost:4321>. You walk straight into the city — wet asphalt, stacked
+neon towers, holograms, a monorail, and Mochi somewhere out there. No menu, no avatar,
 no third-person camera. To put him on the machine that stays on, skip to
 [Deploying to the micropc](#deploying-to-the-micropc).
 

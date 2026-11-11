@@ -547,22 +547,22 @@
 
     bctx.fillStyle = 'rgba(0,0,0,0.3)';
     bctx.beginPath();
-    bctx.ellipse(sx, sy, asleep ? 10 : 7, asleep ? 4 : 3, 0, 0, Math.PI * 2);
+    bctx.ellipse(sx, sy, asleep ? 11 : 8, asleep ? 4.5 : 3.4, 0, 0, Math.PI * 2);
     bctx.fill();
 
     const cx = sx;
 
     if (asleep) {
       // curled up, tail wrapped around the nose
-      bctx.fillStyle = '#2b2a27';
+      bctx.fillStyle = '#d8c6a6';
       bctx.beginPath();
-      bctx.ellipse(cx, sy - 6 + bob, 10, 7, 0, 0, Math.PI * 2);
+      bctx.ellipse(cx, sy - 6 + bob, 11, 7.4, 0, 0, Math.PI * 2);
       bctx.fill();
-      bctx.fillStyle = '#413d38';
+      bctx.fillStyle = '#3a2a24';
       bctx.beginPath();
       bctx.ellipse(cx + 3, sy - 9 + bob, 5.2, 4.6, 0, 0, Math.PI * 2);
       bctx.fill();
-      bctx.fillStyle = '#2b2a27';
+      bctx.fillStyle = '#3a2a24';
       for (const side of [-1, 1]) {
         bctx.beginPath();
         bctx.moveTo(cx + 3 + side * 3, sy - 12 + bob);
@@ -571,7 +571,7 @@
         bctx.closePath();
         bctx.fill();
       }
-      bctx.strokeStyle = '#d8a24b';
+      bctx.strokeStyle = '#7fd9f2';
       bctx.lineWidth = 1;
       bctx.beginPath();
       bctx.moveTo(cx + 1, sy - 10 + bob);
@@ -579,7 +579,7 @@
       bctx.moveTo(cx + 5, sy - 10 + bob);
       bctx.lineTo(cx + 7, sy - 10 + bob);
       bctx.stroke();
-      bctx.strokeStyle = '#2b2a27';
+      bctx.strokeStyle = '#3a2a24';
       bctx.lineWidth = 3;
       bctx.beginPath();
       bctx.moveTo(cx - 8, sy - 5 + bob);
@@ -594,14 +594,14 @@
       return;
     }
 
-    const bodyTop = sy - 18 + bob;
-    const bodyW = 12;
-    const bodyH = 15;
+    const bodyTop = sy - 21 + bob;
+    const bodyW = 15;
+    const bodyH = 18;
     const tailSide = facing === 'w' ? -1 : 1;
 
     // tail, behind the body and swishing
-    bctx.strokeStyle = '#2b2a27';
-    bctx.lineWidth = 3.2;
+    bctx.strokeStyle = '#3a2a24';
+    bctx.lineWidth = 3.8;
     bctx.lineCap = 'round';
     bctx.beginPath();
     const swish = Math.sin(t * 2.2) * 2.5;
@@ -610,35 +610,35 @@
     bctx.stroke();
 
     // legs
-    bctx.fillStyle = '#232220';
-    const swing = walking ? Math.sin(t * 9) * 1.5 : 0;
-    bctx.fillRect(cx - 4 + swing, sy - 4, 2.4, 4);
-    bctx.fillRect(cx + 2 - swing, sy - 4, 2.4, 4);
+    bctx.fillStyle = '#3a2a24';
+    const swing = walking ? Math.sin(t * 9) * 1.8 : 0;
+    bctx.fillRect(cx - 5 + swing, sy - 5, 2.8, 5);
+    bctx.fillRect(cx + 2.2 - swing, sy - 5, 2.8, 5);
 
     // body and pale chest
-    bctx.fillStyle = '#2b2a27';
-    roundRect(bctx, cx - bodyW / 2, bodyTop, bodyW, bodyH, 5);
+    bctx.fillStyle = '#d8c6a6';
+    roundRect(bctx, cx - bodyW / 2, bodyTop, bodyW, bodyH, 6);
     bctx.fill();
     const lookX = facing === 'e' ? 1.1 : facing === 'w' ? -1.1 : 0;
-    bctx.fillStyle = '#c9bca6';
+    bctx.fillStyle = '#f0e6d2';
     bctx.beginPath();
     bctx.ellipse(cx + lookX * 0.6, bodyTop + 9, 3.2, 4.8, 0, 0, Math.PI * 2);
     bctx.fill();
 
     // collar and bell
-    bctx.fillStyle = '#7b2f2f';
+    bctx.fillStyle = '#ff2d7a';
     bctx.fillRect(cx - 4.6, bodyTop + 2.2, 9.2, 1.7);
-    bctx.fillStyle = '#c9a24a';
+    bctx.fillStyle = '#5ffbf1';
     bctx.beginPath();
     bctx.arc(cx, bodyTop + 4.4, 1.2, 0, Math.PI * 2);
     bctx.fill();
 
     // head
     const hy = bodyTop - 3.5;
-    const hx = cx + lookX;
-    bctx.fillStyle = '#2b2a27';
+    const hx = cx + lookX;    bctx.fillStyle = '#3a2a24';
+
     bctx.beginPath();
-    bctx.arc(hx, hy, 6.1, 0, Math.PI * 2);
+    bctx.arc(hx, hy, 7, 0, Math.PI * 2);
     bctx.fill();
 
     // ears
@@ -656,12 +656,12 @@
     bctx.fill();
 
     if (facing === 'n') {
-      bctx.fillStyle = '#3b3733';
+      bctx.fillStyle = '#3a2a24';
       bctx.beginPath();
-      bctx.arc(hx, hy + 0.8, 4.3, 0, Math.PI * 2);
+      bctx.arc(hx, hy + 0.8, 4.9, 0, Math.PI * 2);
       bctx.fill();
     } else {
-      bctx.fillStyle = '#a86f66';
+      bctx.fillStyle = '#5a4038';
       for (const side of [-1, 1]) {
         bctx.beginPath();
         bctx.moveTo(hx + side * 4.2, hy - 5.1);
@@ -671,10 +671,10 @@
         bctx.fill();
       }
 
-      // amber eyes with a slit pupil
+      // ice-blue Siamese eyes with a slit pupil
       const blink = Math.sin(t * 0.9 + 1) > 0.985 ? 0.4 : 1;
       for (const side of [-1, 1]) {
-        bctx.fillStyle = '#d8a24b';
+        bctx.fillStyle = '#7fd9f2';
         bctx.beginPath();
         bctx.arc(hx + side * 2.35, hy + 0.4, 1.9, 0, Math.PI * 2);
         bctx.fill();
@@ -683,11 +683,11 @@
       }
 
       // muzzle, nose, whiskers
-      bctx.fillStyle = '#cfc0a4';
+      bctx.fillStyle = '#f0e6d2';
       bctx.beginPath();
       bctx.ellipse(hx + lookX * 0.4, hy + 3.5, 2.9, 1.9, 0, 0, Math.PI * 2);
       bctx.fill();
-      bctx.fillStyle = '#a86f66';
+      bctx.fillStyle = '#5a4038';
       bctx.beginPath();
       bctx.moveTo(hx + lookX * 0.4, hy + 2.3);
       bctx.lineTo(hx + lookX * 0.4 - 0.8, hy + 3.3);
