@@ -4,12 +4,16 @@ import path from 'node:path';
 export type ProviderName = 'gemini' | 'openai';
 
 export type BrainEndpoint = {
+  /** Short label used in logs, e.g. "gemini" or "groq". */
+  name?: string;
   provider: ProviderName;
   apiKey: string;
   model: string;
   fastModel: string;
   visionModel: string;
   baseUrl: string;
+  /** Some free routers reject response_format; the prompts still ask for JSON. */
+  jsonMode?: boolean;
 };
 
 export type Config = {
@@ -45,8 +49,12 @@ export type Config = {
     minSecondsBetweenCalls: number;
     /** Below this many calls left in the day, only the fast model is used. */
     reserveCalls: number;
+    /** Minutes to skip a provider after it reports a rate or daily quota limit. */
+    cooldownMinutes: number;
     /** Tried when the primary endpoint fails, has no key, or cannot see images. */
     fallback: BrainEndpoint;
+    /** Free or paid endpoints tried in order after the legacy fallback. */
+    fallbacks: BrainEndpoint[];
   };
   memory: {
     slotsPerSection: number;
@@ -108,6 +116,37 @@ export function loadEnvFile(file = '.env'): void {
   }
 }
 
+const GEMINI_FALLBACK: BrainEndpoint = {
+  name: 'gemini',
+  provider: 'gemini',
+  apiKey: '',
+  model: 'gemini-2.5-flash',
+  fastModel: 'gemini-2.5-flash-lite',
+  visionModel: 'gemini-2.5-flash',
+  baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+};
+
+const GROQ_FALLBACK: BrainEndpoint = {
+  name: 'groq',
+  provider: 'openai',
+  apiKey: '',
+  model: 'openai/gpt-oss-120b',
+  fastModel: 'openai/gpt-oss-20b',
+  visionModel: 'openai/gpt-oss-120b',
+  baseUrl: 'https://api.groq.com/openai/v1',
+};
+
+const OPENROUTER_FALLBACK: BrainEndpoint = {
+  name: 'openrouter',
+  provider: 'openai',
+  apiKey: '',
+  model: 'openrouter/free',
+  fastModel: 'openrouter/free',
+  visionModel: 'openrouter/free',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  jsonMode: false,
+};
+
 const DEFAULTS: Config = {
   port: 4321,
   host: '0.0.0.0',
@@ -126,17 +165,16 @@ const DEFAULTS: Config = {
     temperature: 1.0,
     heartbeatMinMs: 4000,
     heartbeatMaxMs: 15000,
-    maxCallsPerDay: 350,
+    maxCallsPerDay: 2000,
     minSecondsBetweenCalls: 6,
     reserveCalls: 40,
-    fallback: {
-      provider: 'gemini',
-      apiKey: '',
-      model: 'gemini-2.5-flash',
-      fastModel: 'gemini-2.5-flash-lite',
-      visionModel: 'gemini-2.5-flash',
-      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    },
+    cooldownMinutes: 20,
+    fallback: { ...GEMINI_FALLBACK },
+    fallbacks: [
+      { ...GEMINI_FALLBACK },
+      { ...GROQ_FALLBACK },
+      { ...OPENROUTER_FALLBACK },
+    ],
   },
   memory: {
     slotsPerSection: 24,
@@ -205,10 +243,45 @@ export function loadConfig(): Config {
   else if (env.GEMINI_API_KEY && cfg.brain.provider === 'gemini') cfg.brain.apiKey = env.GEMINI_API_KEY;
   else if (env.OPENAI_API_KEY && cfg.brain.provider === 'openai') cfg.brain.apiKey = env.OPENAI_API_KEY;
 
-  if (env.GEMINI_API_KEY) cfg.brain.fallback.apiKey = env.GEMINI_API_KEY;
-  if (env.GEMINI_MODEL) cfg.brain.fallback.model = env.GEMINI_MODEL;
-  if (env.GEMINI_FAST_MODEL) cfg.brain.fallback.fastModel = env.GEMINI_FAST_MODEL;
-  if (env.GEMINI_VISION_MODEL) cfg.brain.fallback.visionModel = env.GEMINI_VISION_MODEL;
+  // Clone the endpoint objects before env overrides so tests and repeated
+  // config loads never mutate the shared defaults.
+  cfg.brain.fallback = { ...cfg.brain.fallback };
+  cfg.brain.fallbacks = cfg.brain.fallbacks.map((f) => ({ ...f }));
+  for (const base of [GEMINI_FALLBACK, GROQ_FALLBACK, OPENROUTER_FALLBACK]) {
+    if (!cfg.brain.fallbacks.some((f) => f.name === base.name)) {
+      cfg.brain.fallbacks.push({ ...base });
+    }
+  }
+  const fallbackFor = (name: string) => cfg.brain.fallbacks.find((f) => f.name === name)!;
+
+  if (env.GEMINI_API_KEY) {
+    cfg.brain.fallback.apiKey = env.GEMINI_API_KEY;
+    fallbackFor('gemini').apiKey = env.GEMINI_API_KEY;
+  }
+  if (env.GEMINI_MODEL) {
+    cfg.brain.fallback.model = env.GEMINI_MODEL;
+    fallbackFor('gemini').model = env.GEMINI_MODEL;
+  }
+  if (env.GEMINI_FAST_MODEL) {
+    cfg.brain.fallback.fastModel = env.GEMINI_FAST_MODEL;
+    fallbackFor('gemini').fastModel = env.GEMINI_FAST_MODEL;
+  }
+  if (env.GEMINI_VISION_MODEL) {
+    cfg.brain.fallback.visionModel = env.GEMINI_VISION_MODEL;
+    fallbackFor('gemini').visionModel = env.GEMINI_VISION_MODEL;
+  }
+
+  if (env.GROQ_API_KEY) fallbackFor('groq').apiKey = env.GROQ_API_KEY;
+  if (env.GROQ_MODEL) fallbackFor('groq').model = env.GROQ_MODEL;
+  if (env.GROQ_FAST_MODEL) fallbackFor('groq').fastModel = env.GROQ_FAST_MODEL;
+  if (env.GROQ_VISION_MODEL) fallbackFor('groq').visionModel = env.GROQ_VISION_MODEL;
+  if (env.GROQ_BASE_URL) fallbackFor('groq').baseUrl = env.GROQ_BASE_URL;
+
+  if (env.OPENROUTER_API_KEY) fallbackFor('openrouter').apiKey = env.OPENROUTER_API_KEY;
+  if (env.OPENROUTER_MODEL) fallbackFor('openrouter').model = env.OPENROUTER_MODEL;
+  if (env.OPENROUTER_FAST_MODEL) fallbackFor('openrouter').fastModel = env.OPENROUTER_FAST_MODEL;
+  if (env.OPENROUTER_VISION_MODEL) fallbackFor('openrouter').visionModel = env.OPENROUTER_VISION_MODEL;
+  if (env.OPENROUTER_BASE_URL) fallbackFor('openrouter').baseUrl = env.OPENROUTER_BASE_URL;
 
   if (env.DISCORD_BOT_TOKEN) cfg.discord.token = env.DISCORD_BOT_TOKEN;
   if (env.DISCORD_CHANNEL_ID) cfg.discord.channelId = env.DISCORD_CHANNEL_ID;

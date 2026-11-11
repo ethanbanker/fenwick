@@ -23,9 +23,10 @@
     "temperature": 1,
     "heartbeatMinMs": 4000,
     "heartbeatMaxMs": 15000,
-    "maxCallsPerDay": 350,
+    "maxCallsPerDay": 2000,
     "minSecondsBetweenCalls": 6,
-    "reserveCalls": 40
+    "reserveCalls": 40,
+    "cooldownMinutes": 20
   },
   "memory": {
     "slotsPerSection": 24,

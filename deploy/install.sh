@@ -253,13 +253,14 @@ if [ ! -f "$ROOT/.env" ]; then
   chmod 600 "$ROOT/.env"
   say "created .env from the template"
 fi
-if grep -qE '^(DEEPSEEK_API_KEY|GEMINI_API_KEY|LLM_API_KEY|OPENAI_API_KEY)=.+' "$ROOT/.env"; then
+if grep -qE '^(DEEPSEEK_API_KEY|GEMINI_API_KEY|GROQ_API_KEY|OPENROUTER_API_KEY|LLM_API_KEY|OPENAI_API_KEY)=.+' "$ROOT/.env"; then
   say "an api key is set"
 else
   warn "no api key in $ROOT/.env"
   warn "he will still live (reflex brain: walking, eating, sleeping, judging offerings)"
-  warn "but he will not deliberate. get a key: https://platform.deepseek.com/api_keys"
-  warn "or a free Gemini backup: https://aistudio.google.com/apikey"
+  warn "but he will not deliberate. get a paid DeepSeek key: https://platform.deepseek.com/api_keys"
+  warn "or a free backup: Gemini https://aistudio.google.com/apikey"
+  warn "  Groq https://console.groq.com/keys · OpenRouter https://openrouter.ai/settings/keys"
   warn "then: nano $ROOT/.env   and re-run this script"
 fi
 [ -f "$ROOT/config.json" ] || { warn "config.json missing — it is part of the repo"; exit 1; }

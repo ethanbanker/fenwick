@@ -33,20 +33,27 @@ no third-person camera. To put him on the machine that stays on, skip to
 
 ### The one thing you have to do: get a key
 
-The brain runs on **DeepSeek Flash** first, with **Gemini** as an automatic backup.
-Both APIs are cheap or free to start, and you only need one of them:
+The brain is a chain, and you only need one key. **DeepSeek Flash** is the optional
+paid primary. The free backups are **Gemini**, **Groq**, and OpenRouter's
+**free-models router**, tried in that order:
 
-1. DeepSeek: <https://platform.deepseek.com/api_keys> — put `DEEPSEEK_API_KEY` in `.env`.
-2. Gemini: <https://aistudio.google.com/apikey> — put `GEMINI_API_KEY` in `.env`.
+1. DeepSeek (optional, paid): <https://platform.deepseek.com/api_keys>
+2. Gemini free tier: <https://aistudio.google.com/apikey>
+3. Groq free tier: <https://console.groq.com/keys>
+4. OpenRouter free models: <https://openrouter.ai/settings/keys>
 
 ```
 DEEPSEEK_API_KEY=your-key-here
-GEMINI_API_KEY=your-backup-key-here
+GEMINI_API_KEY=your-free-key
+GROQ_API_KEY=your-free-key
+OPENROUTER_API_KEY=your-free-key
 ```
 
-If DeepSeek is rate-limited, errors, or a picture needs looking at, the brain tries
-Gemini next; if only a Gemini key exists, it uses Gemini from the start. The daily
-budget is shared across both.
+If a provider is rate-limited or reports a daily quota, it is skipped for 20 minutes
+and the next endpoint is tried. OpenRouter is pinned to `openrouter/free`, so it never
+falls through to a paid model. With no DeepSeek key, Gemini leads the free chain.
+The 2,000-call daily ceiling is shared by the whole chain; provider quotas normally
+bind long before it.
 
 **Without either key he is not broken** — he falls back to a reflex brain and keeps
 living: walking, eating, sleeping, and judging what you leave him. He just stops
@@ -345,7 +352,7 @@ house.
 
 ## Cost, and staying free
 
-`config.json` → `brain.maxCallsPerDay` (default **350**) is a hard ceiling. He is
+`config.json` → `brain.maxCallsPerDay` (default **2,000**) is a hard ceiling. He is
 also paced with `minSecondsBetweenCalls`, and when the budget runs out he drops to
 the reflex brain and keeps living. `/mind` shows the meter.
 
@@ -353,23 +360,25 @@ Realistic consumption for a full day is roughly 100–250 calls: decisions only 
 when an action finishes, plus one diary entry, one or two consolidation calls, and
 some browsing. It fits inside free tiers.
 
-If you start getting rate limited, he backs off for 20 minutes automatically and
-lives on reflexes.
+If one provider is rate-limited, he skips it for 20 minutes and keeps using the next
+one. He only falls back to reflexes when every keyed endpoint is cooling or the shared
+2,000-call ceiling is spent.
 
 ### Using a different model
 
-The default chain is DeepSeek `deepseek-flash` (OpenAI-compatible) with Gemini
-2.5 Flash as the fallback. `DEEPSEEK_API_KEY` and `GEMINI_API_KEY` are enough; no
-model names need changing. If Freebuff ever ships a public API endpoint, it would be
-another OpenAI-compatible entry here, but it does not have one today and this project
-does not scrape its private endpoints.
+The default chain is DeepSeek `deepseek-flash` (optional, paid), then Gemini, Groq
+`openai/gpt-oss-120b`, and OpenRouter `openrouter/free`. The free stages need only
+`GEMINI_API_KEY`, `GROQ_API_KEY`, and/or `OPENROUTER_API_KEY`; model names need no
+changing. If Freebuff ever ships a public headless API, it would be another
+OpenAI-compatible entry here, but it does not have one today and this project does
+not scrape its private endpoints.
 
-Any other OpenAI-compatible endpoint works too (Groq, Cerebras, OpenRouter, a local
+Any other OpenAI-compatible endpoint works too (another free provider, or a local
 Ollama). In `.env`:
 
 ```
 LLM_PROVIDER=openai
-LLM_BASE_URL=https://api.groq.com
+LLM_BASE_URL=https://api.groq.com/openai/v1
 LLM_MODEL=openai/gpt-oss-120b
 LLM_FAST_MODEL=openai/gpt-oss-20b
 LLM_VISION_MODEL=openai/gpt-oss-120b
@@ -393,8 +402,9 @@ slower thinking and no vision unless you pull a vision model. Set
 | `sim.tickHz` | simulation tick rate. 20 is plenty. |
 | `sim.seed` | the town layout is deterministic from this. |
 | `brain.model` / `fastModel` / `visionModel` | which models do which job |
-| `brain.fallback` | the backup endpoint (Gemini by default, key from `.env`) |
-| `brain.maxCallsPerDay` | hard daily ceiling on model calls, shared by primary and backup |
+| `brain.fallbacks` | ordered backup endpoint array: Gemini, Groq, then OpenRouter free |
+| `brain.cooldownMinutes` | how long a provider is skipped after a 429/quota (default 20) |
+| `brain.maxCallsPerDay` | hard daily ceiling across the whole chain (default 2000) |
 | `memory.slotsPerSection` / `halfLifeDays` | how much he can hold, how fast it fades |
 | `offerings.spawnRadiusTiles` / `senseRadiusTiles` | how far things appear, how close he must get to notice. Smaller sense radius = harder to find. |
 | `browse.enabled` | turn the internet off entirely |

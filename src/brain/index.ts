@@ -632,10 +632,9 @@ function adapt(obs: Observation, waiting: boolean): void {
 }
 
 async function main(): Promise<void> {
-  const backup = cfg.brain.fallback.apiKey ? `${cfg.brain.fallback.provider}/${cfg.brain.fallback.model}` : 'none';
   const primaryKey = cfg.brain.apiKey ? '' : ' (no key)';
   log(
-    `starting. configured=${cfg.brain.provider}/${cfg.brain.model}${primaryKey} active=${brain.activeLabel} fallback=${backup} budget=${cfg.brain.maxCallsPerDay}/day`,
+    `starting. configured=${cfg.brain.provider}/${cfg.brain.model}${primaryKey} active=${brain.activeLabel} chain=${brain.chainLabel} budget=${cfg.brain.maxCallsPerDay}/day`,
   );
   if (!brain.keyPresent) {
     log('no API key found. He will live on reflexes until you add one to .env (see README).');
