@@ -85,6 +85,13 @@ export type Config = {
     timeoutMs: number;
     maxBytes: number;
   };
+  /** His hands: files he can write and the few commands he may run. */
+  workshop: {
+    enabled: boolean;
+    maxFileBytes: number;
+    maxOutputBytes: number;
+    timeoutMs: number;
+  };
 };
 
 function deepMerge<T>(base: T, override: unknown): T {
@@ -254,6 +261,7 @@ const DEFAULTS: Config = {
     timeoutMs: 12000,
     maxBytes: 400_000,
   },
+  workshop: { enabled: true, maxFileBytes: 48_000, maxOutputBytes: 4000, timeoutMs: 8000 },
 };
 
 export const ROOT = path.resolve(process.cwd());

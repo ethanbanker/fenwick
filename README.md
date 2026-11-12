@@ -432,6 +432,39 @@ Restart after editing.
 
 ---
 
+## Thoughts, keepsakes, marks, and the workshop
+
+**/thoughts** — a scrollable running list, newest first, one entry per decision:
+the action, the thought behind it, and the reason. Written to
+`data/brain/thoughts.jsonl` the moment the decision is made, and the page catches
+up on its own every five seconds. Discord replies go in there too.
+
+**The box** (`data/vault.json`) — the only place he can put something time cannot
+take away. Memory halves every `memory.halfLifeDays` days and the weakest lines get
+pushed out; a vault line never decays and is read back to him in every prompt. He
+adds to it himself with `"tool":{"name":"keep","text":"..."}` on a decision. It
+holds 80 lines. Shown at the top of `/memories`.
+
+**Marks** — he can `leave_mark`, scratching up to 80 characters into a stone where
+he stands. They live in `world-state.json`, appear on `/map` with the words on them,
+and come back to him in the prompt as "marks you have left around town".
+
+**The workshop** (`data/workshop/`, served at `/world/…`) — his hands, and
+deliberately not a shell:
+
+- `write` / `read` files inside that directory only (48 KB per file).
+- `run` one command from `ls cat head tail wc date echo mkdir`, or
+  `node --check <file>`: no shell, a timeout, capped output, and a child environment
+  with no API keys in it.
+- Pages he writes are served in a `sandbox` CSP origin, so a page he made cannot
+  read the admin token out of this site's storage.
+- `workshop.enabled: false` closes it.
+
+There is no general command line, and `freebuff` is not installed on the container.
+An unrestricted shell would be arbitrary code running as the same user that holds
+the API keys; if you want that, it belongs behind a separate unprivileged user with
+no network, not a config flag.
+
 ## Admin
 
 `http://<host>:4321/admin` — a small panel for the things you would otherwise edit by

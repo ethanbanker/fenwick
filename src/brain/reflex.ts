@@ -1,4 +1,4 @@
-import type { Observation } from './types.ts';
+import type { Observation, ToolCall } from './types.ts';
 
 export type Decision = {
   id: string;
@@ -7,6 +7,8 @@ export type Decision = {
   thought: string;
   /** how this decision was reached, shown in logs and the HUD */
   via: 'model' | 'reflex';
+  /** optional one thing he wants to do with his hands this turn */
+  tool?: ToolCall;
 };
 
 const MURMURS = [

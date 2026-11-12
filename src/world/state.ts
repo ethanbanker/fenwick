@@ -29,6 +29,15 @@ export type Offering = {
   replies: string[];
 };
 
+/** Something he scratched or planted where he stood. It stays. */
+export type Mark = {
+  id: string;
+  text: string;
+  tile: Point;
+  day: number;
+  at: number;
+};
+
 export type WorldEvent = {
   id: number;
   day: number;
@@ -77,6 +86,7 @@ export type WorldState = {
   weather: { kind: WeatherKind; since: number; nextChange: number };
   creature: Creature;
   offerings: Offering[];
+  marks: Mark[];
   events: WorldEvent[];
   eventSeq: number;
   visitedToday: Record<string, number>;
@@ -115,6 +125,7 @@ export function createWorld(cfg: Config): { state: WorldState; town: Town } {
       moodNote: 'ears up, unsure what the day wants from him',
     },
     offerings: [],
+    marks: [],
     events: [],
     eventSeq: 1,
     visitedToday: {},

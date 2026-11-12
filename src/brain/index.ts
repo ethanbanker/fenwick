@@ -4,6 +4,9 @@ import { clamp, oneLine } from '../util/text.ts';
 import { describeNeedsValues, energyBand, moodBand } from '../world/needs.ts';
 import { Brain, sleep } from './llm.ts';
 import { loadMemory, consolidate } from './memory.ts';
+import { loadVault } from './vault.ts';
+import { appendThought } from './thoughts.ts';
+import { runTool } from './tools.ts';
 import { evolvePersona, loadPersona, personaBrief, type PersonaSheet } from './persona.ts';
 import { appendLog, gc, hasDiary, readLog, writeDiaryEntry } from './diary.ts';
 import { browseSession } from './browse.ts';
@@ -15,6 +18,7 @@ const cfg = loadConfig();
 const reloadFile = dataPath(cfg, 'brain', 'reload.request');
 const brain = new Brain(cfg);
 const memory = loadMemory(cfg);
+const vault = loadVault(cfg);
 let persona: { baseline: PersonaSheet; current: PersonaSheet } = loadPersona(cfg);
 
 const BASE = `http://127.0.0.1:${cfg.port}`;
@@ -150,6 +154,15 @@ async function answerChat(obs: Observation, waiting: IncomingChat[]): Promise<vo
   if (!(await discord.say(reply, last.channelId))) return;
 
   log(`answered ${last.from} on discord: ${oneLine(reply, 90)}`);
+  appendThought(cfg, {
+    at: Date.now(),
+    day: obs.day,
+    time: obs.time,
+    action: 'said',
+    thought: reply,
+    reason: `${last.from} asked`,
+    tier: 'chat',
+  });
   remember(`${last.from} spoke to me; I said ${oneLine(reply, 60)}`);
   appendLog(cfg, obs.day, `[${obs.time}] I said: ${oneLine(reply, 240)}`);
   chatHistory.push(`${last.from}: ${oneLine(last.text, 160)}\n${NAME}: ${oneLine(reply, 200)}`);
@@ -317,10 +330,18 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     'WHAT YOU REMEMBER:',
     memory.digest(obs.day, 18),
     '',
+    'THINGS YOU HAVE DECIDED TO KEEP, FOR GOOD (these never fade):',
+    vault.digest(8),
+    '',
     obs.events.length ? `WHAT JUST HAPPENED:\n${obs.events.map((e) => `- ${e.text}`).join('\n')}` : '',
     obs.offeringCrystals.length
       ? `SOMETHING IS OUT THERE:\n${obs.offeringCrystals
           .map((c) => `- a crystal from ${c.from}, about ${c.distance} tiles away, ${c.state}`)
+          .join('\n')}`
+      : '',
+    obs.marks?.length
+      ? `MARKS YOU HAVE LEFT AROUND TOWN:\n${obs.marks
+          .map((m) => `- day ${m.day}, ${m.distance} tiles off: "${m.text}"`)
           .join('\n')}`
       : '',
     '',
@@ -335,6 +356,13 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     'Decide what you do next. You are not answering a question and nobody is listening. Do not describe the scene.',
     'Reply with JSON only:',
     '{"action":"exact_id","args":{},"reason":"one short clause, why, in your own terms","thought":"what goes through your head, first person, under 20 words"}',
+    '',
+    'You may attach one optional "tool" to that same JSON, if you actually want it right now:',
+    '  {"tool":{"name":"keep","text":"one sentence worth keeping forever"}} — the box that never fades.',
+    '  {"tool":{"name":"write","path":"garden.html","text":"the whole file"}} — make something in your workshop, served at /world/garden.html.',
+    '  {"tool":{"name":"read","path":"garden.html"}}',
+    '  {"tool":{"name":"run","command":"ls"}} — only ls, cat, head, tail, wc, date, echo, mkdir, node --check <file>, inside the workshop.',
+    'One tool at most. For leave_mark, put the words you scratch into args: {"action":"leave_mark","args":{"text":"..."}}.',
   ]
     .filter((line) => line !== '')
     .join('\n');
@@ -365,6 +393,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     reason: String(res.data.reason ?? '').slice(0, 200) || 'because',
     thought: String(res.data.thought ?? '').slice(0, 200) || 'fine.',
     via: 'model',
+    tool: res.data.tool && typeof res.data.tool === 'object' ? res.data.tool : undefined,
   };
   return { decision: proposed, tier };
 }
@@ -623,6 +652,25 @@ async function beat(): Promise<void> {
   );
   for (const e of obs.events) appendLog(cfg, obs.day, `  · ${e.text}`);
   log(`${obs.time} ${final.id}${final.args?.place ? ` → ${final.args.place}` : ''} — ${final.reason} [${tier}, ${Date.now() - startedAt}ms]`);
+
+  appendThought(cfg, {
+    at: Date.now(),
+    day: obs.day,
+    time: obs.time,
+    action: `${final.id}${final.args?.place ? ` → ${final.args.place}` : ''}`,
+    thought: final.thought,
+    reason: final.reason,
+    tier,
+  });
+
+  if (final.tool) {
+    const outcome = runTool(cfg, vault, final.tool, obs.day);
+    if (outcome) {
+      log(`tool ${final.tool.name}: ${outcome.ok ? 'ok' : 'refused'} — ${oneLine(outcome.message, 140)}`);
+      appendLog(cfg, obs.day, `[${obs.time}] ${final.tool.name}: ${oneLine(outcome.message, 200)}`);
+      remember(outcome.message);
+    }
+  }
 
   lastObs = obs;
   adapt(obs, false);

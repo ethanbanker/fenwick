@@ -19,6 +19,7 @@ import { advanceNeeds } from './needs.ts';
 import { availableActions, completeAction, placeOf, startAction, type ActionContext } from './actions.ts';
 import { renderPage, type PageKind } from './pages.ts';
 import { adminAuthorized, adminStatus, adminToken, updateKeys } from './admin.ts';
+import { readThoughts } from '../brain/thoughts.ts';
 
 const cfg = loadConfig();
 const stateFile = dataPath(cfg, 'world-state.json');
@@ -51,6 +52,8 @@ if (restored) {
 }
 
 state.lastFinished = state.lastFinished ?? null;
+// saves written before marks existed simply have none
+state.marks = Array.isArray(state.marks) ? state.marks : [];
 
 const startedAt = Date.now();
 let lastTick = Date.now();
@@ -225,6 +228,7 @@ function snapshot(): unknown {
       inventory: c.inventory,
     },
     offerings: offeringsForWire(),
+    marks: state.marks.slice(-24).map((m) => ({ id: m.id, x: m.tile.x, y: m.tile.y, text: m.text, day: m.day })),
     events: state.events.slice(-7).map((e) => ({ id: e.id, text: e.text, kind: e.kind, day: e.day })),
     keptTotal: state.keptTotal,
   };
@@ -301,6 +305,14 @@ function observation(sinceEventId: number): unknown {
       distance: Math.round(Math.hypot(o.tile.x - c.pos.x, o.tile.y - c.pos.y) * 10) / 10,
       waitingSince: o.createdAt,
     })),
+    marks: state.marks
+      .slice(-8)
+      .reverse()
+      .map((m) => ({
+        text: m.text,
+        day: m.day,
+        distance: Math.round(Math.hypot(m.tile.x - c.pos.x, m.tile.y - c.pos.y) * 10) / 10,
+      })),
     pendingInspection: state.offerings
       .filter((o) => o.state === 'found')
       .map((o) => ({
@@ -458,6 +470,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (p === '/api/thoughts') {
+      const limit = Number(url.searchParams.get('limit') ?? 200);
+      sendJson(res, 200, { ok: true, thoughts: readThoughts(cfg, Number.isFinite(limit) ? limit : 200) });
+      return;
+    }
+
     if (p === '/events') {
       sse.handle(req, res, { town: cfg.town.name, creature: cfg.creature.name, state: snapshot() });
       return;
@@ -585,6 +603,7 @@ const server = http.createServer(async (req, res) => {
       '/memories': 'memories',
       '/mind': 'mind',
       '/offerings': 'offerings',
+      '/thoughts': 'thoughts',
     };
     if (pageRoutes[p]) {
       const html = renderPage(pageRoutes[p], cfg, state, town, url);
@@ -604,6 +623,49 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       sendJson(res, 404, { error: 'no image' });
+      return;
+    }
+
+    // His workshop: files he wrote himself, served in a sandboxed origin so a
+    // page he made can never touch the admin token in this origin's storage.
+    if (p.startsWith('/world/')) {
+      const root = ensureDir(cfg, 'workshop');
+      const rel = decodeURIComponent(p.slice('/world/'.length)).replace(/^\/+/, '');
+      const file = path.resolve(root, rel);
+      if (
+        !rel ||
+        rel.includes('..') ||
+        !file.startsWith(root + path.sep) ||
+        !fs.existsSync(file) ||
+        !fs.statSync(file).isFile()
+      ) {
+        sendJson(res, 404, { ok: false, error: 'no such page in the workshop' });
+        return;
+      }
+      const ext = path.extname(file).toLowerCase();
+      const mime =
+        ext === '.html'
+          ? 'text/html; charset=utf-8'
+          : ext === '.js'
+            ? 'text/javascript; charset=utf-8'
+            : ext === '.css'
+              ? 'text/css; charset=utf-8'
+              : ext === '.json'
+                ? 'application/json; charset=utf-8'
+                : ext === '.svg'
+                  ? 'image/svg+xml'
+                  : ext === '.png'
+                    ? 'image/png'
+                    : 'text/plain; charset=utf-8';
+      const body = fs.readFileSync(file);
+      res.writeHead(200, {
+        'content-type': mime,
+        'cache-control': 'no-cache',
+        'content-security-policy': 'sandbox allow-scripts allow-forms allow-popups',
+        'x-content-type-options': 'nosniff',
+        'content-length': body.length,
+      });
+      res.end(body);
       return;
     }
 

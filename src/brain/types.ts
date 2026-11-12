@@ -50,9 +50,17 @@ export type Observation = {
     imagePath: string | null;
     imageMime: string | null;
   }>;
+  marks: Array<{ text: string; day: number; distance: number }>;
   lastFinished: { id: string; args: Record<string, unknown>; finishedAt: number } | null;
   routine: { actionsToday: Record<string, number>; visitedToday: Record<string, number>; recent: string[] };
   stats: { keptTotal: number; offeringCount: number };
+};
+
+export type ToolCall = {
+  name: 'keep' | 'write' | 'read' | 'run';
+  text?: string;
+  path?: string;
+  command?: string;
 };
 
 export type ModelDecision = {
@@ -61,6 +69,7 @@ export type ModelDecision = {
   reason?: string;
   thought?: string;
   feeling?: string;
+  tool?: ToolCall;
 };
 
 export type InspectionVerdict = {

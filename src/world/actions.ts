@@ -205,6 +205,19 @@ export const ACTIONS: ActionSpec[] = [
     appetite: 'something is new and does not belong to him yet',
   },
   {
+    id: 'leave_mark',
+    label: 'leave a mark',
+    places: [],
+    durationMinutes: [10, 18],
+    cooldownSeconds: 240,
+    pullFrom: [
+      { need: 'unease', weight: 0.5 },
+      { need: 'curiosity', weight: 0.2 },
+    ],
+    tags: ['mark', 'permanent'],
+    appetite: 'if he is going to be here, he could be here on purpose',
+  },
+  {
     id: 'wander',
     label: 'wander',
     places: [],
@@ -533,6 +546,25 @@ export function completeAction(ctx: ActionContext): { id: string; args: Record<s
   if (state.actionHistory.length > 40) state.actionHistory.shift();
 
   switch (id) {
+    case 'leave_mark': {
+      // whatever he scratched goes into the town, and the town keeps it
+      const text =
+        String(action.args.text ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 80) || `${cfg.creature.name} was here`;
+      state.marks.push({
+        id: `k${Date.now().toString(36)}`,
+        text,
+        tile: { x: Math.floor(c.pos.x), y: Math.floor(c.pos.y) },
+        day: state.clock.day,
+        at: now,
+      });
+      if (state.marks.length > 80) state.marks = state.marks.slice(-80);
+      applyMoodDelta(state, { valence: 0.08 });
+      addEvent(state, 'mark', `leaves a mark where he stood: "${text}"`, 0.5);
+      break;
+    }
     case 'forage': {
       const roll = Math.random();
       applyNeedDelta(state, { hunger: -0.1 }, 1);

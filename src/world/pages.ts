@@ -4,11 +4,13 @@ import type { Town } from './map.ts';
 import { darkness, timeLabel, type WorldState } from './state.ts';
 import { describeNeedsValues, energyBand, moodBand } from './needs.ts';
 import { loadMemory, SECTIONS, type MemorySection } from '../brain/memory.ts';
+import { loadVault } from '../brain/vault.ts';
+import { readThoughts } from '../brain/thoughts.ts';
 import { loadPersona, personaDrift } from '../brain/persona.ts';
 import { loadInterests, loadReadings, topInterests } from '../brain/browse.ts';
 import { listDiary } from '../brain/diary.ts';
 
-export type PageKind = 'diary' | 'memories' | 'mind' | 'offerings';
+export type PageKind = 'diary' | 'memories' | 'mind' | 'offerings' | 'thoughts';
 
 const CSS = `
 :root{
@@ -71,6 +73,12 @@ label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase
 .pill.kept{color:#cfe0bd;border-color:#4d5f3f;background:#232b1d}
 .pill.released{color:#d9b1a6;border-color:#5b3b33;background:#2a2020}
 .pill.waiting{color:var(--amber);border-color:var(--amber-dim);background:#2a2318}
+.stream{max-height:62vh;overflow:auto;padding-right:6px}
+.thought{padding:11px 0;border-bottom:1px solid var(--line)}
+.thought:last-child{border-bottom:none}
+.thought .when{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.thought .what{font-family:ui-serif,Georgia,serif;font-size:16.5px;color:#e9dfd0;margin:2px 0 1px}
+.thought .why{font-size:12px;color:var(--dim)}
 .empty{color:var(--faint);font-style:italic;font-family:ui-serif,Georgia,serif}
 `;
 
@@ -109,6 +117,7 @@ function layout(kind: PageKind, cfg: Config, state: WorldState, body: string, su
   const nav: Array<[PageKind | 'town', string, string]> = [
     ['town', '/', 'the town'],
     ['diary', '/diary', 'diary'],
+    ['thoughts', '/thoughts', 'thoughts'],
     ['memories', '/memories', 'memories'],
     ['mind', '/mind', 'mind'],
     ['offerings', '/offerings', 'offerings'],
@@ -168,6 +177,7 @@ function memoriesPage(cfg: Config, state: WorldState): string {
   const day = state.clock.day;
   const counts = memory.counts(day);
   const slots = cfg.memory.slotsPerSection;
+  const vault = loadVault(cfg);
 
   const sectionBlocks = SECTIONS.map((section: MemorySection) => {
     const bullets = memory.sectionBullets(section, day);
@@ -218,6 +228,19 @@ function memoriesPage(cfg: Config, state: WorldState): string {
      <span><b>${slots}</b> slots per section</span>
      <span><b>${cfg.memory.halfLifeDays}</b> day half-life</span></div>
      ${fading}
+     <div class="card">
+       <h3>things he has decided to keep, for good</h3>
+       ${
+         vault.entries.length
+           ? `<ul>${vault.entries
+               .slice()
+               .reverse()
+               .map((e) => `<li>${esc(e.text)} <span class="faint">day ${e.day}</span></li>`)
+               .join('')}</ul>
+               <p class="faint">This is the one place time cannot reach. ${vault.entries.length} of 80 lines used.</p>`
+           : '<p class="empty">Nothing yet. This is the only place he can put something that the half-life cannot take away.</p>'
+       }
+     </div>
      ${sectionBlocks}
      ${
        memory.file.skills.length || memory.file.tools.length
@@ -428,6 +451,53 @@ function offeringsPage(cfg: Config, state: WorldState): string {
   );
 }
 
+// ------------------------------------------------------------------ thoughts
+
+function thoughtsPage(cfg: Config, state: WorldState): string {
+  const thoughts = readThoughts(cfg, 200);
+  const rows = thoughts
+    .map(
+      (t) =>
+        `<div class="thought"><div class="when"><b>day ${t.day}</b> ${esc(t.time)} <span class="faint">${esc(t.action)} \u00b7 ${esc(t.tier)}</span></div><div class="what">${esc(t.thought)}</div><div class="why">${esc(t.reason)}</div></div>`,
+    )
+    .join('');
+
+  const body = `${statusLine(cfg, state)}
+  <div class="card">
+    <h3>running, newest first</h3>
+    <div id="stream" class="stream">${rows || '<p class="empty">Nothing has gone through his head yet.</p>'}</div>
+    <p class="faint">Every decision is written here the moment it is made, with what he took it for. It catches up on its own.</p>
+  </div>
+  <script>
+  (function () {
+    var box = document.getElementById('stream');
+    var newest = ${thoughts.length ? thoughts[0].at : 0};
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>\"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c];
+      });
+    }
+    function row(t) {
+      return '<div class="thought"><div class="when"><b>day ' + esc(t.day) + '</b> ' + esc(t.time) +
+        ' <span class="faint">' + esc(t.action) + ' \u00b7 ' + esc(t.tier) + '</span></div>' +
+        '<div class="what">' + esc(t.thought) + '</div>' +
+        '<div class="why">' + esc(t.reason) + '</div></div>';
+    }
+    setInterval(function () {
+      if (document.hidden) return;
+      fetch('/api/thoughts?limit=200').then(function (r) { return r.json(); }).then(function (data) {
+        if (!data.thoughts || !data.thoughts.length) return;
+        if (data.thoughts[0].at === newest) return;
+        newest = data.thoughts[0].at;
+        box.innerHTML = data.thoughts.map(row).join('');
+      }).catch(function () {});
+    }, 5000);
+  })();
+  </script>`;
+
+  return layout('thoughts', cfg, state, body, `What goes through his head, in the order it happens.`);
+}
+
 export function renderPage(
   kind: PageKind,
   cfg: Config,
@@ -444,6 +514,8 @@ export function renderPage(
       return mindPage(cfg, state);
     case 'offerings':
       return offeringsPage(cfg, state);
+    case 'thoughts':
+      return thoughtsPage(cfg, state);
     default:
       return diaryPage(cfg, state);
   }

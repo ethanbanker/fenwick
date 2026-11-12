@@ -533,6 +533,26 @@
     }
   }
 
+  // ---------------------------------------------------------------- marks
+
+  /** A mark he left behind: a small flat stone with something scratched in it. */
+  function drawMark(mk) {
+    const c = project(mk.x + 0.5, mk.y + 0.5);
+    const sx = Math.round(c.sx);
+    const sy = Math.round(c.sy);
+    bctx.fillStyle = 'rgba(0,0,0,0.22)';
+    bctx.beginPath();
+    bctx.ellipse(sx, sy + 1, 6, 2.4, 0, 0, Math.PI * 2);
+    bctx.fill();
+    bctx.fillStyle = '#cfc4ad';
+    bctx.fillRect(sx - 5, sy - 8, 10, 8);
+    bctx.fillStyle = '#b3a894';
+    bctx.fillRect(sx - 5, sy - 8, 10, 1);
+    bctx.fillStyle = 'rgba(72,62,50,0.75)';
+    bctx.fillRect(sx - 3, sy - 5, 6, 1);
+    bctx.fillRect(sx - 3, sy - 3, 4, 1);
+  }
+
   /** Name tags for crystals nobody has collected yet, so whoever left one can
       find it again. Drawn over the weather and the vignette so they always read. */
   function drawCrystalTags(list, t) {
@@ -560,6 +580,31 @@
       bctx.fillRect(x, y, 1, 10);
       bctx.fillStyle = '#efe6d8';
       bctx.fillText(label, x + 4, y + 5.5);
+    }
+    bctx.restore();
+  }
+
+  /** What he scratched into the stone, over the top of the map. */
+  function drawMarkTags(list) {
+    const recent = list.slice(-8);
+    if (!recent.length) return;
+    bctx.save();
+    bctx.font = '5px ui-sans-serif, -apple-system, sans-serif';
+    bctx.textAlign = 'left';
+    bctx.textBaseline = 'middle';
+    for (const mk of recent) {
+      const c = project(mk.x + 0.5, mk.y + 0.5);
+      if (c.sx < -60 || c.sx > baseW + 60 || c.sy < -40 || c.sy > baseH + 40) continue;
+      const label = '"' + String(mk.text || '').replace(/"/g, '').slice(0, 20) + '"';
+      const w = Math.ceil(bctx.measureText(label).width) + 8;
+      const x = Math.round(c.sx - w / 2);
+      const y = Math.round(c.sy) - 26;
+      bctx.fillStyle = 'rgba(10,8,7,0.72)';
+      bctx.fillRect(x, y, w, 9);
+      bctx.fillStyle = 'rgba(207,196,173,0.55)';
+      bctx.fillRect(x, y, 1, 9);
+      bctx.fillStyle = '#cfc4ad';
+      bctx.fillText(label, x + 4, y + 5);
     }
     bctx.restore();
   }
@@ -917,6 +962,10 @@
       drawables.push({ d: off.x + off.y + 0.55, fn: () => drawCrystal(off, t) });
     }
 
+    for (const mk of snap ? snap.marks || [] : []) {
+      drawables.push({ d: mk.x + mk.y + 0.5, fn: () => drawMark(mk) });
+    }
+
     drawables.push({
       d: Math.floor(shown.x) + Math.floor(shown.y) + 0.75,
       fn: drawCat,
@@ -931,7 +980,10 @@
     drawWeather(snap ? snap.weather : 'clear', t);
     drawVignette();
 
-    if (snap) drawCrystalTags(snap.offerings || [], t);
+    if (snap) {
+      drawCrystalTags(snap.offerings || [], t);
+      drawMarkTags(snap.marks || []);
+    }
 
     view.imageSmoothingEnabled = false;
     view.clearRect(0, 0, canvas.width, canvas.height);
