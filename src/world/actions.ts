@@ -276,7 +276,7 @@ export type AvailableAction = {
 
 /** Everything he could plausibly do right now, cheapest to present to the model. */
 export function availableActions(ctx: ActionContext): AvailableAction[] {
-  const { state, town } = ctx;
+  const { cfg, state, town } = ctx;
   const c = state.creature;
   const here = placeOf(town, c.pos);
   const out: AvailableAction[] = [];
@@ -332,19 +332,27 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
     });
   }
 
-  // offerings close enough to notice
+  // Offerings he can see. Sensing is close up, but a crystal catches the light
+  // from across the square — without that he had no way to notice one that
+  // spawned at the far end of his ring and it would sit there for days.
+  const reach = cfg.offerings.senseRadiusTiles + 1.4;
+  // whatever the ring can place, he must be able to see, or it is lost forever
+  const sight = Math.max(reach, cfg.offerings.sightRadiusTiles, cfg.offerings.spawnRadiusTiles + 2);
   for (const off of state.offerings) {
     if (off.state === 'kept' || off.state === 'released') continue;
+    if (off.state === 'found') continue;
     const d = Math.hypot(off.tile.x - c.pos.x, off.tile.y - c.pos.y);
-    if (d <= ctx.cfg.offerings.senseRadiusTiles + 1.4) {
-      out.push({
-        id: 'inspect',
-        description: `inspect the crystal left by ${off.from}`,
-        args: { offering: off.id },
-        pull: clamp(0.75 + needUrgency(state, 'curiosity', 0.3) * 0.3, 0, 1),
-        here: true,
-      });
-    }
+    if (d > sight) continue;
+    const close = d <= reach;
+    out.push({
+      id: 'inspect',
+      description: close
+        ? `inspect the crystal left by ${off.from}`
+        : `go and look at the crystal left by ${off.from}`,
+      args: { offering: off.id },
+      pull: clamp((close ? 0.75 : 0.62) + needUrgency(state, 'curiosity', 0.3) * 0.3, 0, 1),
+      here: close,
+    });
   }
 
   return out;
@@ -398,8 +406,34 @@ export function startAction(ctx: ActionContext, id: string, args: Record<string,
     if (!off) return { ok: false, error: 'that crystal is not there any more' };
     if (off.state === 'kept' || off.state === 'released') return { ok: false, error: 'he already dealt with that one' };
     const d = Math.hypot(off.tile.x - c.pos.x, off.tile.y - c.pos.y);
-    if (d > cfg.offerings.senseRadiusTiles + 1.4) return { ok: false, error: 'it is too far away to inspect' };
+    const reach = cfg.offerings.senseRadiusTiles + 1.4;
+    if (d > Math.max(reach, cfg.offerings.sightRadiusTiles, cfg.offerings.spawnRadiusTiles + 2)) {
+      return { ok: false, error: 'he cannot see anything over there' };
+    }
+    // too far to crouch over: walk to it first, the crouch happens on arrival
+    if (d > reach) {
+      const path = findPath(c.pos, off.tile, (x, y) => {
+        const t = town.tiles[y * town.w + x];
+        return t !== T.building && t !== T.water && t !== T.tree;
+      }, town.w, town.h);
+      if (!path.length) return { ok: false, error: 'cannot find a way over to it' };
+      c.path = path;
+      const action = {
+        id,
+        label: `walking over to what ${off.from} left`,
+        reason,
+        thought,
+        args,
+        startedAt: now,
+        endsAt: now + (path.length / c.speed) * 1000 + 400,
+        phase: 'moving' as const,
+      };
+      c.action = action;
+      addEvent(state, 'offering', `sets off towards something glassy catching the light`, 0.5);
+      return { ok: true, action };
+    }
     off.state = 'found';
+    off.foundAt = now;
     const action = {
       id,
       label: `looking at what ${off.from} left`,
@@ -484,6 +518,12 @@ export function completeAction(ctx: ActionContext): { id: string; args: Record<s
   }
 
   if (id === 'inspect') {
+    // arriving is what makes a crystal he walked over to finally found
+    const off = state.offerings.find((o) => o.id === String(action.args.offering));
+    if (off && off.state !== 'kept' && off.state !== 'released') {
+      off.state = 'found';
+      off.foundAt = now;
+    }
     return { id, args: action.args, finishedAt: now };
   }
 

@@ -424,7 +424,8 @@ slower thinking and no vision unless you pull a vision model. Set
 | `brain.cooldownMinutes` | how long a provider is skipped after a 429/quota (default 20) |
 | `brain.maxCallsPerDay` | hard daily ceiling across the whole chain (default 2000) |
 | `memory.slotsPerSection` / `halfLifeDays` | how much he can hold, how fast it fades |
-| `offerings.spawnRadiusTiles` / `senseRadiusTiles` | how far things appear, how close he must get to notice. Smaller sense radius = harder to find. |
+| `offerings.spawnRadiusTiles` | the ring around him that new crystals appear in |
+| `offerings.senseRadiusTiles` / `sightRadiusTiles` | how close he must be to notice one, and how far off a glint still catches his eye so he can walk over. Smaller sense radius = harder to find. |
 | `browse.enabled` | turn the internet off entirely |
 
 Restart after editing.

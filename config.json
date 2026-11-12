@@ -38,7 +38,8 @@
   "offerings": {
     "perDayLimit": 3,
     "spawnRadiusTiles": 9,
-    "senseRadiusTiles": 3
+    "senseRadiusTiles": 3,
+    "sightRadiusTiles": 12
   },
   "browse": {
     "enabled": true,

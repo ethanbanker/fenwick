@@ -67,6 +67,8 @@ export type Config = {
     perDayLimit: number;
     spawnRadiusTiles: number;
     senseRadiusTiles: number;
+    /** How far off something glassy still catches his eye, so he can go and look. */
+    sightRadiusTiles: number;
   };
   discord: {
     /** Bot token from the Discord developer portal. Empty means the bridge is off. */
@@ -240,6 +242,9 @@ const DEFAULTS: Config = {
     perDayLimit: 3,
     spawnRadiusTiles: 9,
     senseRadiusTiles: 3,
+    // sensing is close up; sight is what makes him decide to go over. Without
+    // it a crystal in the 4-9 tile ring could sit there for days.
+    sightRadiusTiles: 12,
   },
   discord: { token: '', channelId: '', announceDiaries: true },
   browse: {

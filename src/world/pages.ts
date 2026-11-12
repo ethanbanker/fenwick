@@ -357,7 +357,7 @@ function offeringsPage(cfg: Config, state: WorldState): string {
   const body = `
   ${statusLine(cfg, state)}
   <div class="card">
-    <p>Leave him something, words or a picture. It does not go into an inbox — a crystal appears somewhere in the town and he has to come across it. His sense range is smaller than the ring it spawns in, so it might take him a while, and it might depend on what mood he is in.</p>
+    <p>Leave him something, words or a picture. It does not go into an inbox — a crystal appears somewhere in the town, in a ring around wherever he happens to be, and he has to come across it. He can see one glinting from a fair way off and will sometimes go over to look, but whether he bothers is up to him and what mood he is in.</p>
     <p class="faint">He decides whether to keep it. Nothing you can do buys standing with him except things he actually decides to keep. ${todayCount} left in the last day; he will only tolerate so many at once.</p>
     <div id="form">
       <label for="from">your name</label>

@@ -125,6 +125,12 @@ async function answerChat(obs: Observation, waiting: IncomingChat[]): Promise<vo
       'THE CONVERSATION SO FAR:',
       chatHistory.length ? chatHistory.join('\n') : '(nobody has spoken to you before)',
       '',
+      waiting.length > 1
+        ? `While you were busy they also said: ${waiting
+            .slice(0, -1)
+            .map((m) => `${m.from}: "${oneLine(m.text, 120)}"`)
+            .join(' | ')}`
+        : '',
       `${last.from} says: "${oneLine(last.text, 400)}"`,
       '',
       'Reply with what you say out loud. No stage directions, no quotation marks.',
@@ -551,8 +557,10 @@ async function beat(): Promise<void> {
   const remaining = obs.creature.action?.remainingMs ?? 0;
   const idle = !obs.creature.action;
 
-  // somebody is talking to him: answer them before he decides anything else
-  if (idle && !obs.creature.asleep) {
+  // Somebody is talking to him: answer them before he decides anything else.
+  // He can talk while walking or working — only being asleep keeps him quiet,
+  // and the queue is answered as soon as he wakes up.
+  if (!obs.creature.asleep) {
     const waiting = discord.drain(3);
     if (waiting.length) {
       await answerChat(obs, waiting);

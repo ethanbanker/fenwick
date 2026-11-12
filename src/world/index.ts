@@ -243,9 +243,14 @@ function observation(sinceEventId: number): unknown {
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 5);
 
+  const sight = Math.max(
+    cfg.offerings.senseRadiusTiles + 1.5,
+    cfg.offerings.sightRadiusTiles,
+    cfg.offerings.spawnRadiusTiles + 2,
+  );
   const sensed = state.offerings.filter((o) => {
     if (o.state === 'kept' || o.state === 'released') return false;
-    return Math.hypot(o.tile.x - c.pos.x, o.tile.y - c.pos.y) <= cfg.offerings.senseRadiusTiles + 1.5;
+    return Math.hypot(o.tile.x - c.pos.x, o.tile.y - c.pos.y) <= sight;
   });
 
   return {
@@ -387,7 +392,8 @@ function pickSpawnTile(): { x: number; y: number } {
   const blockedPlaces = new Set(['nest']);
   for (let attempt = 0; attempt < 400; attempt++) {
     const angle = Math.random() * Math.PI * 2;
-    const r = 4 + Math.random() * (cfg.offerings.spawnRadiusTiles - 2);
+    // 4 tiles out to the edge of the ring, never past it
+    const r = 4 + Math.random() * Math.max(1, cfg.offerings.spawnRadiusTiles - 4);
     const x = Math.floor(c.x + Math.cos(angle) * r);
     const y = Math.floor(c.y + Math.sin(angle) * r);
     if (x < 1 || y < 1 || x >= town.w - 1 || y >= town.h - 1) continue;
