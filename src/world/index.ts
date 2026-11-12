@@ -25,6 +25,7 @@ import {
   syncCreations,
 } from './creations.ts';
 import { conditionWord, inferKind, isCreationKind, kindLabel } from '../util/creation-kinds.ts';
+import { ensureProject } from './project.ts';
 import { renderPage, type PageKind } from './pages.ts';
 import { adminAuthorized, adminStatus, adminToken, updateKeys } from './admin.ts';
 import { readThoughts } from '../brain/thoughts.ts';
@@ -64,6 +65,7 @@ state.lastFinished = state.lastFinished ?? null;
 // saves written before marks existed simply have none
 state.marks = Array.isArray(state.marks) ? state.marks : [];
 state.creations = Array.isArray(state.creations) ? state.creations : [];
+state.project = state.project ?? null;
 // saves written before things had a purpose simply get one from their name
 for (const made of state.creations) {
   if (!isCreationKind(made.kind)) made.kind = inferKind(made.name, creationPreview(cfg, made.file, 200));
@@ -178,9 +180,11 @@ function tick(): void {
   senseOfferings();
   // whatever he built in the workshop becomes a thing standing in the town,
   // with the purpose he gave it, coming apart slowly if he stops touching it
-  syncCreations(cfg, state);
+  syncCreations(cfg, state, town);
   applyKindHints(cfg, state);
   decayCreations(cfg, state, dt);
+  // one thing he wants to exist, always: a reason to build besides hunger
+  ensureProject(state, town);
 
   const creaturePlace = placeOf(town, state.creature.pos);
   state.creature.atPlace = creaturePlace;
@@ -262,6 +266,7 @@ function snapshot(): unknown {
       condition: Math.round(c.condition * 100) / 100,
       stage: creationStage(state, c),
     })),
+    project: state.project,
     events: state.events.slice(-7).map((e) => ({ id: e.id, text: e.text, kind: e.kind, day: e.day })),
     keptTotal: state.keptTotal,
   };
@@ -366,6 +371,7 @@ function observation(sinceEventId: number): unknown {
           preview: creationPreview(cfg, made.file, 120),
         };
       }),
+    project: state.project,
     made: {
       total: state.creations.length,
       lastDay: state.creations.length ? state.creations[state.creations.length - 1].day : null,

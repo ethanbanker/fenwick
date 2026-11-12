@@ -51,6 +51,8 @@
     font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
     display:flex;justify-content:space-between}
   #kit-line{margin-top:7px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  #want-line{margin-top:6px;font-size:10px;letter-spacing:.06em;color:var(--amber);display:none}
+  #want-line.on{display:block}
 
   #doing{bottom:18px;left:50%;transform:translateX(-50%);max-width:min(520px,calc(100vw - 380px));
     padding:13px 18px;text-align:center;transition:opacity .5s ease}
@@ -136,6 +138,7 @@
   <div class="need"><span>unease</span><div class="track"><i id="n-unease" style="background:#a9708a"></i></div><b id="v-unease">0</b></div>
   <div id="mood-line"><span id="mood">—</span><span id="energy">—</span></div>
   <div id="kit-line">—</div>
+  <div id="want-line"></div>
 </div>
 
 <div class="hud panel" id="doing">

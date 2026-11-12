@@ -247,6 +247,19 @@ export const ACTIONS: ActionSpec[] = [
     appetite: 'it is coming apart, and that bothers him more than he expected',
   },
   {
+    id: 'make',
+    label: 'make something',
+    places: [],
+    durationMinutes: [25, 45],
+    cooldownSeconds: 0,
+    pullFrom: [
+      { need: 'curiosity', weight: 0.55 },
+      { need: 'unease', weight: 0.15 },
+    ],
+    tags: ['creation', 'work'],
+    appetite: 'there is a thing that should exist and he is the one who can make it',
+  },
+  {
     id: 'leave_mark',
     label: 'leave a mark',
     places: [],
@@ -405,6 +418,7 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
       const canEat = here === 'nest' ? c.inventory.food >= 1 : c.inventory.coins >= 1 || c.inventory.food >= 1;
       if (!canEat) continue;
     }
+    if (spec.id === 'make' && !cfg.workshop.enabled) continue;
     if (spec.id === 'drink' && c.inventory.coins < 1) continue;
     if (spec.id === 'groom' && c.inventory.coins < 1) continue;
     const cd = c.cooldowns[spec.id] ?? 0;
@@ -416,9 +430,14 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
       pull += needUrgency(state, pf.need, 0.8) * pf.weight * 0.6;
     }
     if (spec.id === 'browse' && state.weather.kind === 'rain') pull += 0.08;
+    if (spec.id === 'make') pull += state.project ? 0.22 : 0.05;
+    const description =
+      spec.id === 'make' && state.project
+        ? `make ${state.project.text}`
+        : `${spec.label}${here ? ` at ${placePhrase(placeName(town, here))}` : ''}`;
     out.push({
       id: spec.id,
-      description: `${spec.label}${here ? ` at ${placePhrase(placeName(town, here))}` : ''}`,
+      description,
       args: {},
       pull: clamp(pull, 0, 1),
       here: true,
@@ -512,6 +531,7 @@ export function describeAction(town: Town, id: string, args: Record<string, unkn
   if (id === 'behold') return 'look at something he made';
   if (id === 'use') return 'use something he made';
   if (id === 'mend') return 'mend something he made';
+  if (id === 'make') return 'make something of his own';
   return getSpec(id)?.label ?? id;
 }
 
@@ -691,6 +711,24 @@ export function startAction(ctx: ActionContext, id: string, args: Record<string,
     return { ok: true, action };
   }
 
+  if (id === 'make') {
+    if (!cfg.workshop.enabled) return { ok: false, error: 'the workshop is closed' };
+    const want = state.project;
+    const action = {
+      id,
+      label: want ? `making ${want.text}` : 'making something of his own',
+      reason,
+      thought,
+      args: { want: want?.text ?? '', kind: want?.kind ?? '' },
+      startedAt: now,
+      endsAt: now + msForWorldMinutes(cfg, 25 + Math.random() * 20),
+      phase: 'doing' as const,
+    };
+    c.action = action;
+    addEvent(state, 'creation', want ? `starts making ${want.text}` : 'starts making something of his own', 0.5);
+    return { ok: true, action };
+  }
+
   // place-bound actions, except sleeping in a shelter he built himself
   const shelterSleep = id === 'sleep' && Boolean(args.creation);
   if (spec.places.length && (!here || !spec.places.includes(here)) && !shelterSleep) {
@@ -863,6 +901,17 @@ export function completeAction(ctx: ActionContext): { id: string; args: Record<s
         applyNeedDelta(state, { fatigue: 0.03 });
         addEvent(state, 'creation', `mends "${made.name}" until it holds again`, 0.45);
       }
+      break;
+    }
+    case 'make': {
+      const want = String(action.args.want ?? '');
+      applyNeedDelta(state, { curiosity: -0.18, unease: -0.05 });
+      addEvent(
+        state,
+        'creation',
+        want ? `finishes making ${want} and stands back from it` : 'finishes making something and stands back from it',
+        0.6,
+      );
       break;
     }
     case 'leave_mark': {

@@ -353,6 +353,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     `BODY: ${needsLine}.`,
     `MOOD: ${moodLine}.`,
     `CARRYING: ${obs.creature.inventory.food} food, ${obs.creature.inventory.coins} coins.`,
+    obs.project ? `YOU WANT TO MAKE: ${obs.project.text}.` : '',
     finished ? `YOU JUST FINISHED: ${finished}.` : '',
     obs.creature.action ? `YOU ARE CURRENTLY: ${obs.creature.action.label}.` : '',
     workingMemory.length ? `WHAT YOU WERE JUST THINKING:\n${workingDigest()}` : '',
@@ -539,6 +540,73 @@ async function consolidateNow(obs: Observation, why: string): Promise<void> {
   }
 }
 
+/**
+ * The making turn.
+ *
+ * Building used to be a tool crammed into the 400-token decision reply, so the
+ * file never fit and he never built anything. Choosing `make` earns a second,
+ * separate call whose only job is the object, with a budget that can hold it.
+ */
+async function makeSomething(obs: Observation): Promise<void> {
+  if (!cfg.workshop.enabled) return;
+  if (!brain.keyPresent || brain.report().exhausted || brain.coolingDown) {
+    log('he wanted to make something but there is no model room; the idea waits');
+    appendLog(cfg, obs.day, `[${obs.time}] no model room to make anything`);
+    return;
+  }
+  const want = obs.project;
+  log(`he is making ${want ? `"${want.text}"` : 'something of his own'}`);
+  const res = await brain.json<{ path?: string; kind?: string; text?: string }>({
+    system:
+      `${brief()}\n\nYou are in your workshop, making one object for the town you live in. ` +
+      'You are not talking to anyone. What you write is the object itself: it will stand at the spot you are standing on, ' +
+      'and anyone walking the town will see it. Make something you actually want there, not a demonstration. ' +
+      'Plain HTML and CSS in one file, no external files, no network, no scripts that fetch anything. ' +
+      'Under about six thousand characters. It should look like a thing in a dim neon town, not like a webpage.',
+    user: [
+      `Day ${obs.day}, ${obs.time}. Weather: ${obs.weather}.`,
+      obs.place ? `You are at ${obs.place.name} — ${obs.place.blurb}.` : 'You are standing in the street.',
+      want ? `WHAT YOU WANTED TO MAKE: ${want.text}.` : 'WHAT YOU WANTED TO MAKE: something of your own.',
+      obs.creations?.length
+        ? `WHAT YOU HAVE ALREADY MADE:\n${obs.creations.map((m) => `- "${m.name}" (${m.kind}), ${m.condition}: ${m.preview}`).join('\n')}`
+        : '',
+      '',
+      'Reply with JSON only:',
+      '{"path":"corner-lamp.html","kind":"light","text":"the whole file"}',
+      'path is lowercase words with dashes and a .html ending. kind is one of light, shelter, seat, sign, garden, ornament. ' +
+        'text is the entire file, escaped the way JSON requires.',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    model: 'quality',
+    json: true,
+    maxTokens: 2200,
+    temperature: 0.9,
+  });
+
+  if (!res.ok || !res.data?.text) {
+    log(`he could not finish it: ${res.error ?? 'nothing written'}`);
+    appendLog(cfg, obs.day, `[${obs.time}] could not finish making anything`);
+    return;
+  }
+
+  const rawPath = String(res.data.path ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const file = rawPath.endsWith('.html') ? rawPath : `made-day-${obs.day}.html`;
+  const outcome = runTool(
+    cfg,
+    vault,
+    { name: 'write', path: file, kind: String(res.data.kind ?? ''), text: String(res.data.text) },
+    obs.day,
+  );
+  if (outcome) {
+    log(`made ${file}: ${outcome.ok ? 'it is standing there' : outcome.message}`);
+    appendLog(cfg, obs.day, `[${obs.time}] made ${oneLine(file, 80)}: ${outcome.ok ? 'standing there' : oneLine(outcome.message, 160)}`);
+  }
+}
+
 async function handleFinished(obs: Observation): Promise<void> {
   const finished = obs.lastFinished;
   if (!finished || finished.finishedAt <= lastFinishedHandled) return;
@@ -585,6 +653,10 @@ async function handleFinished(obs: Observation): Promise<void> {
       forced: true,
     });
     if (entry.ok) log(`wrote a diary entry in the middle of the day`);
+  }
+
+  if (finished.id === 'make') {
+    await makeSomething(obs);
   }
 
   if (finished.id === 'sleep') {

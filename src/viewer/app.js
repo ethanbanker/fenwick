@@ -127,6 +127,11 @@
     $('energy').textContent = band(s.creature.mood.energy, [0.2, 0.5, 0.78], ['drowsy', 'calm', 'alert', 'wired']);
     const inv = s.creature.inventory || { food: 0, coins: 0, trinkets: 0 };
     $('kit-line').textContent = `carrying ${inv.food} food \u00b7 ${inv.coins} coins${inv.trinkets ? ` \u00b7 ${inv.trinkets} trinkets` : ''}`;
+    const wantLine = $('want-line');
+    if (wantLine) {
+      wantLine.classList.toggle('on', Boolean(s.project?.text));
+      wantLine.textContent = s.project?.text ? `wants to make ${s.project.text}` : '';
+    }
 
     const label = s.creature.asleep
       ? 'asleep'

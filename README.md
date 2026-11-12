@@ -468,6 +468,7 @@ deliberately not a shell:
   with no API keys in it.
 - Pages he writes are served in a `sandbox` CSP origin, so a page he made cannot
   read the admin token out of this site's storage.
+- making is a timed action of its own: he chooses `make`, and when the work is done a separate model call writes the file, so a whole page never has to fit inside a decision reply. New things go on a free tile beside him rather than piling up under his feet, and he keeps one open want at a time ("a light for the plaza") shown on the HUD and `/mind`.
 - what he makes stands in the town where he made it, and the `kind` he gives it decides what it is: `light` lights its corner after dark and takes the edge off the night, `shelter` is somewhere he can sleep instead of the nest, `seat` is somewhere to sit, `sign` is something he can read back, `garden` grows over in-world days and can be picked, `ornament` is only worth looking at. Things weather while he ignores them — about ten in-world days until they are lying on their side — and `mend` puts them back together.
 - `workshop.enabled: false` closes it.
 

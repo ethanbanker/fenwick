@@ -24,15 +24,15 @@ import * as THREE from '/vendor/three.module.min.js';
   /* tile codes, mirrored from src/world/map.ts */
   const T = { grass: 0, road: 1, water: 2, plaza: 3, building: 4, tree: 5, rubble: 6, sand: 7, dirt: 8 };
   const TILE_COLOUR = [
-    '#101b1b', // grass / planters
-    '#151922', // road
-    '#041820', // water (under the surface)
-    '#1b1d26', // plaza
-    '#0d1017', // building footprint
-    '#0e1c18', // tree / grass under it
-    '#201b26', // rubble
-    '#232521', // sand
-    '#0d1715', // dirt
+    '#16252a', // grass / planters
+    '#1b2330', // road
+    '#08242c', // water (under the surface)
+    '#262a36', // plaza
+    '#151a24', // building footprint
+    '#14262a', // tree / grass under it
+    '#2b2633', // rubble
+    '#2c2f2a', // sand
+    '#12201d', // dirt
   ];
   const FACING_YAW = { e: Math.PI / 2, s: 0, w: -Math.PI / 2, n: Math.PI };
   const SKY_DAY = {
@@ -73,7 +73,7 @@ import * as THREE from '/vendor/three.module.min.js';
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.06;
+  renderer.toneMappingExposure = 1.2;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor(0x0b0f10, 1);
@@ -92,11 +92,11 @@ import * as THREE from '/vendor/three.module.min.js';
   // too limited: hard edges and palette dots do more for the look than detail.
 
   const PALETTE_HEX = [
-    '#04050a', '#070a12', '#0b101c', '#101827', '#162236', '#1d3049',
-    '#26455e', '#315d74', '#3f7a88', '#65a1a6', '#9fc9c2', '#d9e8dc', '#fff4d6',
-    '#20082e', '#3a0b45', '#5e0f56', '#8a1260', '#c01a72', '#ff2d7a', '#ff6b9d', '#ffb3c8',
-    '#032b33', '#07505c', '#0b8f9e', '#19d6d6', '#5ffbf1',
-    '#3a2204', '#8a4f07', '#d97a0c', '#ffb52e',
+    '#0a0f18', '#111827', '#182335', '#1f2d42', '#28394f', '#334960',
+    '#415a70', '#527086', '#62879b', '#7fa6b2', '#a8c7c6', '#d5e4dc', '#fff4d6',
+    '#2a1338', '#3c1748', '#5a1c5c', '#7d1f66', '#a72170', '#ff2d7a', '#ff6b9d', '#ffb3c8',
+    '#0b3a44', '#0f5560', '#127782', '#19b6c0', '#5ffbf1',
+    '#4a2c06', '#8a4f07', '#d97a0c', '#ffb52e',
   ];
   const PALETTE = PALETTE_HEX.map((hex) => {
     const n = parseInt(hex.slice(1), 16);
@@ -165,7 +165,7 @@ import * as THREE from '/vendor/three.module.min.js';
         // colour would multiply it into shades and undo the limited palette.
         float edge = smoothstep(0.055, 0.3, abs(l - lx) + abs(l - ly));
         col *= 1.0 - edge * 0.3;
-        float vig = 1.0 - 0.32 * smoothstep(0.26, 0.78, length(vUv - 0.5));
+        float vig = 1.0 - 0.18 * smoothstep(0.26, 0.82, length(vUv - 0.5));
         col *= vig;
         float grain = fract(sin(dot(gl_FragCoord.xy + uTime * 0.7, vec2(12.9898, 78.233))) * 43758.5453);
         col += (grain - 0.5) * 0.02;
@@ -2458,6 +2458,13 @@ import * as THREE from '/vendor/three.module.min.js';
     $('weather').textContent = s.weather || '—';
     const inv = c.inventory || { food: 0, coins: 0, trinkets: 0 };
     $('kit-line').textContent = `${inv.food} food \u00b7 ${inv.coins} coins${inv.trinkets ? ` \u00b7 ${inv.trinkets} trinkets` : ''}`;
+    const want = $('want');
+    if (s.project?.text) {
+      want.classList.add('on');
+      $('want-text').textContent = s.project.text;
+    } else {
+      want.classList.remove('on');
+    }
 
     if (townReady && !started) {
       started = true;
@@ -2706,8 +2713,8 @@ import * as THREE from '/vendor/three.module.min.js';
   const scratchBottom = new THREE.Color();
   const scratchSun = new THREE.Color();
   const warm = new THREE.Color('#e8a86a');
-  const nightTop = new THREE.Color('#02030a');
-  const nightBottom = new THREE.Color('#1a0626');
+  const nightTop = new THREE.Color('#0b1a2c');
+  const nightBottom = new THREE.Color('#2a1440');
   const realSky = { minutes: 0, elev: 0, dark: 0, label: 'day' };
 
   function updateAtmosphere(now) {
@@ -2719,7 +2726,9 @@ import * as THREE from '/vendor/three.module.min.js';
     const weather = snap?.weather ?? 'clear';
     const angle = (minutes / 1440) * Math.PI * 2 - Math.PI / 2;
     const elev = Math.sin(angle);
-    const dark = clamp((0.08 - elev) / 0.38, 0, 1);
+    // night is a different colour, not the absence of one: he still has to be
+    // able to see the town, and so does anyone walking through it
+    const dark = clamp((0.08 - elev) / 0.38, 0, 1) * 0.8;
     realSky.minutes = minutes;
     realSky.elev = elev;
     realSky.dark = dark;
@@ -2737,7 +2746,7 @@ import * as THREE from '/vendor/three.module.min.js';
     skyUniforms.top.value.copy(scratchTop);
     skyUniforms.bottom.value.copy(scratchBottom);
     scene.fog.color.copy(scratchBottom);
-    const targetFog = (FOG_BY_WEATHER[weather] ?? 0.01) * (1 + dark * 0.32);
+    const targetFog = (FOG_BY_WEATHER[weather] ?? 0.01) * (1 + dark * 0.12);
     scene.fog.density = damp(scene.fog.density, targetFog, 0.04);
 
     const isDay = elev > 0.015;
@@ -2751,15 +2760,15 @@ import * as THREE from '/vendor/three.module.min.js';
     } else {
       sun.position.copy(moonPos);
       sun.color.set('#8fe9ff');
-      sun.intensity = 0.32 * (0.45 + dark * 0.55) * (LIGHT_BY_WEATHER[weather] ?? 1);
+      sun.intensity = 1.0 * (0.6 + dark * 0.4) * (LIGHT_BY_WEATHER[weather] ?? 1);
     }
     sun.target.position.set(18, 0, 18);
     sun.target.updateMatrixWorld();
 
     hemi.color.copy(scratchTop);
-    hemi.groundColor.set('#08101a');
-    hemi.intensity = 0.22 + (1 - dark) * 0.56;
-    ambient.intensity = 0.08 + (1 - dark) * 0.2;
+    hemi.groundColor.set('#1a2530');
+    hemi.intensity = 0.6 + (1 - dark) * 0.45;
+    ambient.intensity = 0.32 + (1 - dark) * 0.16;
 
     const sunDir = sunPos.clone().normalize().multiplyScalar(225);
     sunDisc.position.copy(sunDir);

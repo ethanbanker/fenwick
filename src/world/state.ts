@@ -101,6 +101,14 @@ export type Creature = {
   moodNote: string;
 };
 
+/** The one thing he currently wants to build. */
+export type Project = {
+  kind: CreationKind;
+  text: string;
+  place: string | null;
+  setDay: number;
+};
+
 export type WorldState = {
   version: number;
   seed: number;
@@ -112,6 +120,7 @@ export type WorldState = {
   offerings: Offering[];
   marks: Mark[];
   creations: Creation[];
+  project: Project | null;
   events: WorldEvent[];
   eventSeq: number;
   visitedToday: Record<string, number>;
@@ -152,6 +161,7 @@ export function createWorld(cfg: Config): { state: WorldState; town: Town } {
     offerings: [],
     marks: [],
     creations: [],
+    project: null,
     events: [],
     eventSeq: 1,
     visitedToday: {},

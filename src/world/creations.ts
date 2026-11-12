@@ -4,6 +4,7 @@ import type { Config } from '../config.ts';
 import type { Point } from '../util/geo.ts';
 import { inferKind, readKindHints, type CreationKind } from '../util/creation-kinds.ts';
 import { addEvent, hoursElapsed, type Creation, type WorldState } from './state.ts';
+import { T, type Town } from './map.ts';
 
 /**
  * What he has made, standing where he made it.
@@ -92,14 +93,40 @@ export function creationStage(state: WorldState, made: Creation): number {
  * feet, which is honest: he made them where he was standing. Returns only the
  * ones added this time, so a caller can react to a genuinely new thing.
  */
-export function syncCreations(cfg: Config, state: WorldState): Creation[] {
+/**
+ * A free tile beside him for a new thing, so a morning of building becomes a
+ * corner of town instead of a single pile at his feet.
+ */
+export function pickCreationTile(state: WorldState, town: Town | null): Point {
+  const base = { x: Math.floor(state.creature.pos.x), y: Math.floor(state.creature.pos.y) };
+  const taken = new Set(state.creations.map((c) => `${c.tile.x},${c.tile.y}`));
+  const walkable = (x: number, y: number): boolean => {
+    if (!town) return true;
+    if (x < 0 || y < 0 || x >= town.w || y >= town.h) return false;
+    const t = town.tiles[y * town.w + x];
+    return t !== T.building && t !== T.water && t !== T.tree;
+  };
+  for (let r = 1; r <= 4; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = base.x + dx;
+        const y = base.y + dy;
+        if (!walkable(x, y) || taken.has(`${x},${y}`)) continue;
+        return { x, y };
+      }
+    }
+  }
+  return base;
+}
+
+export function syncCreations(cfg: Config, state: WorldState, town: Town | null = null): Creation[] {
   if (!cfg.workshop.enabled) return [];
   const root = workshopRoot(cfg);
   const files = walk(root);
   const known = new Set(state.creations.map((c) => c.file));
   const hints = readKindHints(cfg.dataDir);
   const fresh: Creation[] = [];
-  const tile = { x: Math.floor(state.creature.pos.x), y: Math.floor(state.creature.pos.y) };
 
   for (const file of files) {
     if (known.has(file)) continue;
@@ -112,6 +139,7 @@ export function syncCreations(cfg: Config, state: WorldState): Creation[] {
     if (Date.now() - mtime < SETTLE_MS) continue;
     const name = creationName(file);
     const kind = hints[file] ?? inferKind(name, creationPreview(cfg, file, 200));
+    const tile = pickCreationTile(state, town);
     const creation: Creation = {
       id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 4)}`,
       file,
@@ -128,6 +156,10 @@ export function syncCreations(cfg: Config, state: WorldState): Creation[] {
     state.creations.push(creation);
     fresh.push(creation);
     addEvent(state, 'creation', `leaves "${creation.name}" standing where he made it`, 0.55);
+    if (state.project && state.project.kind === creation.kind) {
+      addEvent(state, 'creation', `finishes what he set out to make: ${state.project.text}`, 0.65);
+      state.project = null;
+    }
   }
 
   // something gone from the workshop is not standing in the town any more
