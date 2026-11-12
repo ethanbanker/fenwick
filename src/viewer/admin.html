@@ -115,6 +115,7 @@
       <span>active <b id="active">—</b></span>
       <span>updated <b id="updated">—</b></span>
       <span>brain pid <b id="pid">—</b></span>
+      <span>tokens <b id="tokens">—</b></span>
     </div>
   </section>
 
@@ -165,7 +166,7 @@
 (() => {
   const TOKEN_KEY = 'fenwick-admin-token';
   const KEY_NAMES = ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','DEEPSEEK_API_KEY',
-                     'DISCORD_BOT_TOKEN','DISCORD_CHANNEL_ID'];
+                     'DISCORD_BOT_TOKEN','DISCORD_CHANNEL_ID','DISCORD_WEBHOOK_URL'];
   let token = localStorage.getItem(TOKEN_KEY) || '';
   let timer = null;
   let lastOk = 0;
@@ -232,6 +233,9 @@
     $('active').textContent = b ? b.active : '—';
     $('updated').textContent = b ? ago(b.updatedAt) : '—';
     $('pid').textContent = b ? b.pid : '—';
+    $('tokens').textContent = b
+      ? ((b.tokensIn || 0) + (b.tokensOut || 0)).toLocaleString() + ' · ' + (b.tokensIn || 0) + ' in / ' + (b.tokensOut || 0) + ' out'
+      : '—';
 
     const rows = (b && b.endpoints) || [];
     $('chain').innerHTML = rows.length ? rows.map((e) => {

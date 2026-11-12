@@ -439,6 +439,15 @@ the action, the thought behind it, and the reason. Written to
 `data/brain/thoughts.jsonl` the moment the decision is made, and the page catches
 up on its own every five seconds. Discord replies go in there too.
 
+**What it costs.** The free tiers meter *requests*, not tokens, so trimming tokens
+will not buy more calls in a day — but it does cut latency and keeps the decision
+prompt from being diluted by boilerplate. The panel now shows tokens in and out as
+the providers report them, and every `/thoughts` entry carries the size of the
+prompt that produced it, so the numbers are measured rather than assumed. The full
+tool schema is only included when it is likely to matter (high curiosity, every
+eighth decision, or while something is waiting on you); otherwise one line stands in
+for it.
+
 **The box** (`data/vault.json`) — the only place he can put something time cannot
 take away. Memory halves every `memory.halfLifeDays` days and the weakest lines get
 pushed out; a vault line never decays and is read back to him in every prompt. He
@@ -471,6 +480,13 @@ the **bench** section of `/admin`, with his reason, and nothing runs until you p
   no API keys;
 - with a 20 s timeout and capped output, which comes back to him on his next turn
   and lands in `/thoughts`.
+
+**Getting told he asked.** Paste a Discord webhook URL into the admin panel's
+`DISCORD_WEBHOOK_URL` field and every new request is posted to that channel with the
+exact command and his reason. Set `FENWICK_PUBLIC_URL` in `.env` too (e.g.
+`http://192.168.50.25:4321`) and the message carries a clickable link to `/admin`.
+The URL is read from `.env` when a request is sent, so it works the moment you save
+it, with no restart.
 
 Create the account once with `sudo bash install/bench-sandbox.sh` (idempotent; it
 writes the user directly into `/etc/passwd`, since containers often have no

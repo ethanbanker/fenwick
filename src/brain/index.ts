@@ -5,7 +5,7 @@ import { describeNeedsValues, energyBand, moodBand } from '../world/needs.ts';
 import { Brain, sleep } from './llm.ts';
 import { loadMemory, consolidate } from './memory.ts';
 import { loadVault } from './vault.ts';
-import { appendThought } from './thoughts.ts';
+import { appendThought, readThoughts } from './thoughts.ts';
 import { runTool } from './tools.ts';
 import { collectResults } from '../bench.ts';
 import { evolvePersona, loadPersona, personaBrief, type PersonaSheet } from './persona.ts';
@@ -33,6 +33,12 @@ let firstBeat = true;
 let heartbeat = cfg.brain.heartbeatMaxMs;
 let workingMemory: string[] = [];
 const chatHistory: string[] = [];
+// A restart should not wipe the last few minutes of his own thinking: the thought
+// log is already on disk, so it re-seeds what he was in the middle of.
+for (const t of readThoughts(cfg, 6).reverse()) {
+  if (t.thought) workingMemory.push(`${t.time}: ${oneLine(t.thought, 90)}`);
+}
+let awaitingAsk: string | null = null;
 let lastDay = 0;
 let lastDiaryDay = 0;
 let decisions = 0;
@@ -298,20 +304,24 @@ function tierFor(obs: Observation): 'quality' | 'fast' {
 
 let lastKeptTotal = 0;
 
-async function decide(obs: Observation): Promise<{ decision: Decision; tier: string }> {
+async function decide(obs: Observation): Promise<{ decision: Decision; tier: string; promptChars: number }> {
   const bans = rutBans(obs);
   const placeBans = bannedPlaces(obs);
   const tier = tierFor(obs);
 
   if (!brain.keyPresent) {
-    return { decision: reflexDecision(obs), tier: 'reflex (no api key)' };
+    return { decision: reflexDecision(obs), tier: 'reflex (no api key)', promptChars: 0 };
   }
   if (brain.report().exhausted) {
-    return { decision: reflexDecision(obs), tier: 'reflex (daily budget spent)' };
+    return { decision: reflexDecision(obs), tier: 'reflex (daily budget spent)', promptChars: 0 };
   }
   if (brain.coolingDown) {
-    return { decision: reflexDecision(obs), tier: 'reflex (rate limited)' };
+    return { decision: reflexDecision(obs), tier: 'reflex (rate limited)', promptChars: 0 };
   }
+
+  // The full tool schema is eight lines on every single beat. He gets it when it
+  // is likely to matter, and a one-line reminder the rest of the time.
+  const showTools = obs.creature.needs.curiosity > 0.55 || decisions % 8 === 0 || Boolean(awaitingAsk);
 
   const needsLine = describeNeedsValues(obs.creature.needs);
   const moodLine = `${moodBand(obs.creature.mood.valence)}, ${energyBand(obs.creature.mood.energy)}`;
@@ -353,22 +363,29 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
       ? `You have been doing these too much today: ${[...bans].join(', ')}. Not again right now.`
       : '',
     placeBans.size ? `You have already been to: ${[...placeBans].join(', ')} several times today.` : '',
+    obs.creature.needs.curiosity > 0.7 && !awaitingAsk
+      ? 'Your workshop is quiet and there is nothing stopping you making something of your own.'
+      : '',
+    awaitingAsk ? `YOU ARE WAITING ON THE OWNER ABOUT: "${oneLine(awaitingAsk, 100)}"` : '',
     '',
     'Decide what you do next. You are not answering a question and nobody is listening. Do not describe the scene.',
     'Reply with JSON only:',
     '{"action":"exact_id","args":{},"reason":"one short clause, why, in your own terms","thought":"what goes through your head, first person, under 20 words"}',
     '',
-    'You may attach one optional "tool" to that same JSON, if you actually want it right now:',
-    '  {"tool":{"name":"keep","text":"one sentence worth keeping forever"}} — the box that never fades.',
-    '  {"tool":{"name":"write","path":"garden.html","text":"the whole file"}} — make something in your workshop, served at /world/garden.html.',
-    '  {"tool":{"name":"read","path":"garden.html"}}',
-    '  {"tool":{"name":"run","command":"ls"}} — only ls, cat, head, tail, wc, date, echo, mkdir, node --check <file>, inside the workshop.',
-    '  {"tool":{"name":"ask","command":"node build.js","note":"why you want it"}} — anything else. It waits for the owner to approve it, runs safely, and the output comes back next turn. This is the only way to run a real command.',
-    'One tool at most. For leave_mark, put the words you scratch into args: {"action":"leave_mark","args":{"text":"..."}}.',
+    showTools
+      ? 'You may attach one optional "tool" to that same JSON, if you actually want it right now:\n' +
+        '  {"tool":{"name":"keep","text":"one sentence worth keeping forever"}} — the box that never fades.\n' +
+        '  {"tool":{"name":"write","path":"garden.html","text":"the whole file"}} — make something in your workshop, served at /world/garden.html.\n' +
+        '  {"tool":{"name":"read","path":"garden.html"}}\n' +
+        '  {"tool":{"name":"run","command":"ls"}} — only ls, cat, head, tail, wc, date, echo, mkdir, node --check <file>, inside the workshop.\n' +
+        '  {"tool":{"name":"ask","command":"node build.js","note":"why"}} — anything else; waits for the owner to approve, output comes back next turn.\n' +
+        'One tool at most. For leave_mark put the words in args: {"action":"leave_mark","args":{"text":"..."}}.'
+      : '(You can still keep a sentence, write in your workshop, or ask the owner to run something — attach a "tool" when you want to.)',
   ]
     .filter((line) => line !== '')
     .join('\n');
 
+  const promptChars = prompt.length;
   const res = await brain.json<ModelDecision>({
     system:
       `${brief()}\n\n` +
@@ -386,7 +403,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
   if (!res.ok || !res.data?.action) {
     log(`model produced nothing usable (${res.error ?? 'no action'}), falling back to reflex`);
     const decision = reflexDecision(obs);
-    return { decision, tier: `${tier} → reflex fallback` };
+    return { decision, tier: `${tier} → reflex fallback`, promptChars };
   }
 
   const proposed: Decision = {
@@ -397,7 +414,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     via: 'model',
     tool: res.data.tool && typeof res.data.tool === 'object' ? res.data.tool : undefined,
   };
-  return { decision: proposed, tier };
+  return { decision: proposed, tier, promptChars };
 }
 
 function validate(obs: Observation, decision: Decision): { ok: boolean; error?: string } {
@@ -556,6 +573,7 @@ async function beat(): Promise<void> {
   // Anything the owner approved and ran for him comes back before he decides
   // anything else, so the output is in his head when he chooses.
   for (const r of collectResults(cfg)) {
+    awaitingAsk = null;
     const verdict = r.status === 'done' ? 'ran' : r.status === 'denied' ? 'was refused by the owner' : 'failed';
     const line = `bench: ${r.command} ${verdict}${r.output ? ` → ${oneLine(r.output, 240)}` : ''}`;
     remember(line);
@@ -637,7 +655,7 @@ async function beat(): Promise<void> {
   }
 
   const startedAt = Date.now();
-  const { decision, tier } = await decide(obs);
+  const { decision, tier, promptChars } = await decide(obs);
   lastKeptTotal = obs.stats?.keptTotal ?? lastKeptTotal;
   const check = validate(obs, decision);
   let final = decision;
@@ -682,6 +700,7 @@ async function beat(): Promise<void> {
     thought: final.thought,
     reason: final.reason,
     tier,
+    chars: promptChars,
   });
 
   if (final.tool) {
@@ -690,6 +709,9 @@ async function beat(): Promise<void> {
       log(`tool ${final.tool.name}: ${outcome.ok ? 'ok' : 'refused'} — ${oneLine(outcome.message, 140)}`);
       appendLog(cfg, obs.day, `[${obs.time}] ${final.tool.name}: ${oneLine(outcome.message, 200)}`);
       remember(outcome.message);
+      if (outcome.ok && final.tool.name === 'ask') {
+        awaitingAsk = String(final.tool.command ?? '').slice(0, 120) || 'a command';
+      }
     }
   }
 

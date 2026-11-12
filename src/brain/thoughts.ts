@@ -16,6 +16,8 @@ export type Thought = {
   thought: string;
   reason: string;
   tier: string;
+  /** size of the prompt that produced it, so the cost is visible, not guessed */
+  chars?: number;
 };
 
 const MAX_BYTES = 1_500_000;

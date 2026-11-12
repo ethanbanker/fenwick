@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Config } from './config.ts';
+import { notifyDiscord, panelUrl } from './notify.ts';
 
 /**
  * The bench.
@@ -28,6 +29,8 @@ export type BenchRequest = {
   finishedAt?: number;
   /** the brain has read the outcome back */
   delivered?: boolean;
+  /** the webhook took it, so a restart does not send it twice */
+  notified?: boolean;
 };
 
 type BenchFile = { requests: BenchRequest[] };
@@ -144,6 +147,24 @@ export function submit(
     data.requests = [...done, ...live].sort((a, b) => a.at - b.at);
   }
   save(cfg, data);
+
+  // Tell the owner, if a webhook is configured. Fire and forget: a dead webhook
+  // must not stop the request from being queued.
+  const link = panelUrl();
+  void notifyDiscord(
+    `**${cfg.creature.name} is asking to run a command**\n\`\`\`\n${cmd.slice(0, 400)}\n\`\`\`\n` +
+      (req.note ? `he says: ${req.note}\n` : '') +
+      (link ? `approve or refuse: ${link}` : 'approve or refuse in the admin panel, bench section'),
+  ).then((sent) => {
+    if (!sent) return;
+    const again = load(cfg);
+    const target = again.requests.find((r) => r.id === req.id);
+    if (target) {
+      target.notified = true;
+      save(cfg, again);
+    }
+  });
+
   return { ok: true, id: req.id };
 }
 

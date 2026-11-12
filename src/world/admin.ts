@@ -19,6 +19,8 @@ const EDITABLE = [
   'DEEPSEEK_API_KEY',
   'DISCORD_BOT_TOKEN',
   'DISCORD_CHANNEL_ID',
+  // where the bench asks get announced; a Discord webhook URL
+  'DISCORD_WEBHOOK_URL',
 ] as const;
 
 type KeyName = (typeof EDITABLE)[number];

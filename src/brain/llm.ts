@@ -41,6 +41,8 @@ export type EndpointUsage = {
   lastMs: number | null;
   /** epoch ms; in the future while the stage is resting */
   coolingUntil: number | null;
+  tokensIn: number;
+  tokensOut: number;
 };
 
 export type LimitEvent = {
@@ -55,6 +57,9 @@ export type LimitEvent = {
 
 export type BrainStatus = {
   pid: number;
+  /** tokens the providers reported today, across the whole chain */
+  tokensIn: number;
+  tokensOut: number;
   startedAt: number;
   updatedAt: number;
   dayKey: string;
@@ -159,6 +164,8 @@ export class Brain {
         lastStatus: null,
         lastMs: null,
         coolingUntil: null,
+        tokensIn: 0,
+        tokensOut: 0,
       };
       this.usage.set(endpoint.label, use);
     }
@@ -192,10 +199,19 @@ export class Brain {
         lastStatus: use?.lastStatus ?? null,
         lastMs: use?.lastMs ?? null,
         coolingUntil: this.endpointCooling.get(this.endpointId(endpoint)) ?? null,
+        tokensIn: use?.tokensIn ?? 0,
+        tokensOut: use?.tokensOut ?? 0,
       });
+    }
+    const totals = { tokensIn: 0, tokensOut: 0 };
+    for (const use of this.usage.values()) {
+      totals.tokensIn += use.tokensIn;
+      totals.tokensOut += use.tokensOut;
     }
     return {
       pid: process.pid,
+      tokensIn: totals.tokensIn,
+      tokensOut: totals.tokensOut,
       startedAt: this.startedAt,
       updatedAt: Date.now(),
       dayKey: this.dayKey,
@@ -370,7 +386,7 @@ export class Brain {
         for (let attempt = 0; attempt < 2; attempt++) {
           this.lastCallAt = Date.now();
           try {
-            const text =
+            const answer =
               endpoint.provider === 'gemini'
                 ? await this.callGemini(endpoint, modelName, call)
                 : await this.callOpenAi(endpoint, modelName, call);
@@ -379,10 +395,12 @@ export class Brain {
             this.lastError = null;
             const good = this.usageFor(endpoint);
             good.calls += 1;
+            good.tokensIn += answer.tokensIn;
+            good.tokensOut += answer.tokensOut;
             good.lastStatus = 200;
             good.lastMs = Date.now() - startedAt;
             this.persistStatus();
-            return { ok: true, text, model: modelName, ms: Date.now() - startedAt };
+            return { ok: true, text: answer.text, model: modelName, ms: Date.now() - startedAt };
           } catch (err) {
             const message = (err as Error).message;
             lastErr = `${endpoint.label}: ${message}`;
@@ -455,7 +473,11 @@ export class Brain {
     return out;
   }
 
-  private async callGemini(endpoint: Endpoint, model: string, call: LlmCall): Promise<string> {
+  private async callGemini(
+    endpoint: Endpoint,
+    model: string,
+    call: LlmCall,
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
     const url = `${endpoint.baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(
       endpoint.apiKey,
     )}`;
@@ -492,15 +514,24 @@ export class Brain {
     const data = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
       promptFeedback?: { blockReason?: string };
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
     };
     if (data.promptFeedback?.blockReason) throw new Error(`blocked: ${data.promptFeedback.blockReason}`);
     const cand = data.candidates?.[0];
     const text = (cand?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim();
     if (!text) throw new Error(`empty response (${cand?.finishReason ?? 'no candidate'})`);
-    return text;
+    return {
+      text,
+      tokensIn: data.usageMetadata?.promptTokenCount ?? 0,
+      tokensOut: data.usageMetadata?.candidatesTokenCount ?? 0,
+    };
   }
 
-  private async callOpenAi(endpoint: Endpoint, model: string, call: LlmCall): Promise<string> {
+  private async callOpenAi(
+    endpoint: Endpoint,
+    model: string,
+    call: LlmCall,
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
     const base = endpoint.baseUrl.replace(/\/$/, '');
     const url = base.endsWith('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
     const content: Array<Record<string, unknown>> = [{ type: 'text', text: call.user }];
@@ -533,10 +564,17 @@ export class Brain {
       const text = await res.text();
       throw new EndpointError(`openai ${res.status}: ${text.slice(0, 300)}`, retryHintMs(res.headers, text));
     }
-    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
     const text = data.choices?.[0]?.message?.content?.trim() ?? '';
     if (!text) throw new Error('empty response');
-    return text;
+    return {
+      text,
+      tokensIn: data.usage?.prompt_tokens ?? 0,
+      tokensOut: data.usage?.completion_tokens ?? 0,
+    };
   }
 }
 

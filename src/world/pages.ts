@@ -458,7 +458,7 @@ function thoughtsPage(cfg: Config, state: WorldState): string {
   const rows = thoughts
     .map(
       (t) =>
-        `<div class="thought"><div class="when"><b>day ${t.day}</b> ${esc(t.time)} <span class="faint">${esc(t.action)} \u00b7 ${esc(t.tier)}</span></div><div class="what">${esc(t.thought)}</div><div class="why">${esc(t.reason)}</div></div>`,
+        `<div class="thought"><div class="when"><b>day ${t.day}</b> ${esc(t.time)} <span class="faint">${esc(t.action)} \u00b7 ${esc(t.tier)}${t.chars ? ` \u00b7 ${t.chars} chars` : ''}</span></div><div class="what">${esc(t.thought)}</div><div class="why">${esc(t.reason)}</div></div>`,
     )
     .join('');
 
@@ -479,7 +479,7 @@ function thoughtsPage(cfg: Config, state: WorldState): string {
     }
     function row(t) {
       return '<div class="thought"><div class="when"><b>day ' + esc(t.day) + '</b> ' + esc(t.time) +
-        ' <span class="faint">' + esc(t.action) + ' \u00b7 ' + esc(t.tier) + '</span></div>' +
+        ' <span class="faint">' + esc(t.action) + ' \u00b7 ' + esc(t.tier) + (t.chars ? ' \u00b7 ' + t.chars + ' chars' : '') + '</span></div>' +
         '<div class="what">' + esc(t.thought) + '</div>' +
         '<div class="why">' + esc(t.reason) + '</div></div>';
     }
