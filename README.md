@@ -275,7 +275,8 @@ one channel and answers there in his own voice, with the same memory and mood as
 everything else. A conversation is a model call, so it counts against the daily budget
 and he says so plainly when it runs out. Set `DISCORD_BOT_TOKEN` and
 `DISCORD_CHANNEL_ID` in `.env` — the bot needs the **Message Content Intent** — then
-restart; he will also post each finished diary entry there. Setup steps are in
+restart; he will also post each finished diary entry there, and his bench requests
+arrive as messages with approve buttons (see *Backups* and the bench section below). Setup steps are in
 `.env.example`. With those two values empty, nothing about him changes.
 
 Tuning: the clock runs one in-world day per real hour. He is nocturnal, so the
@@ -481,12 +482,22 @@ the **bench** section of `/admin`, with his reason, and nothing runs until you p
 - with a 20 s timeout and capped output, which comes back to him on his next turn
   and lands in `/thoughts`.
 
-**Getting told he asked.** Paste a Discord webhook URL into the admin panel's
-`DISCORD_WEBHOOK_URL` field and every new request is posted to that channel with the
-exact command and his reason. Set `FENWICK_PUBLIC_URL` in `.env` too (e.g.
-`http://192.168.50.25:4321`) and the message carries a clickable link to `/admin`.
-The URL is read from `.env` when a request is sent, so it works the moment you save
-it, with no restart.
+**Getting told he asked, and approving it.** With the bot configured, every request
+lands in his Discord channel with two buttons — *run it* and *no* — and pressing one
+runs exactly the same approval the bench section of `/admin` does. Add
+`DISCORD_OWNER_ID` (your Discord user id: with developer mode on, right-click
+yourself → Copy User ID) so only you can press them; leave it empty and anyone in
+the channel can. The command's output is posted back to the channel when it finishes.
+
+The bot is acknowledged within Discord's three second window, so a slow command does
+not show as *interaction failed*.
+
+Without the bot, paste a webhook URL into the admin panel's `DISCORD_WEBHOOK_URL`
+field instead and every new request is posted with the exact command and his reason.
+Set `FENWICK_PUBLIC_URL` in `.env` too (e.g. `http://192.168.50.25:4321`) and the
+message carries a clickable link to `/admin`. The URL is read from `.env` when a
+request is sent, so it works the moment you save it, with no restart. When the bot
+is running the webhook is skipped, so nothing arrives twice.
 
 Create the account once with `sudo bash install/bench-sandbox.sh` (idempotent; it
 writes the user directly into `/etc/passwd`, since containers often have no
@@ -543,6 +554,38 @@ Back up `data/` and he survives. Delete `data/` and he starts over as a stranger
 
 His generated mind (diary, memory, persona) is deliberately kept out of the source
 so that editing the code doesn't rewrite who he is.
+
+---
+
+## Backups
+
+`deploy/backup.sh` archives `data/` and `config.json` into any writable directory,
+verifies the new archive reads back before it rotates anything, writes a `.sha256`
+beside it, and keeps the last 14.
+
+A NAS share is normally writable from the Proxmox host, not from inside an
+unprivileged container (CIFS ownership maps to uid 100000 there), so
+`deploy/backup-host.sh` runs on the host instead: it tars inside the container, pulls
+the archive out over `pct`, checks it, and rotates in the mounted share.
+
+```sh
+# on the host, once — proves the destination works
+sudo DEST=/mnt/nasnet/fenwick bash deploy/backup-host.sh
+
+# whatever the timer runs
+sudo systemctl start fenwick-backup
+```
+
+Restore is the same archive over the same paths, with the service stopped:
+
+```sh
+systemctl stop fenwick
+tar -xzf fenwick-<stamp>.tar.gz -C /opt/fenwick
+systemctl start fenwick
+```
+
+`install/backup-timer.sh` installs the container-side timer instead, for when the
+destination is genuinely writable from inside the container.
 
 ---
 
