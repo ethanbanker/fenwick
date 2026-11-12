@@ -312,6 +312,18 @@ $SUDO systemctl restart "$SERVICE_NAME"
 say "started (and enabled at boot)"
 
 # ---------------------------------------------------------------------------
+# 3b. The bench needs an unprivileged account to run approved commands as.
+#     Without it every approval is refused, so create it here rather than
+#     leaving it as a surprise on the first request.
+# ---------------------------------------------------------------------------
+if command -v setpriv >/dev/null 2>&1; then
+  step "sandbox"
+  $SUDO env FENWICK_DIR="$ROOT" bash "$ROOT/install/bench-sandbox.sh" || warn "could not set up the sandbox account; the bench will refuse commands until install/bench-sandbox.sh is run"
+else
+  warn "setpriv is missing (util-linux). Approved bench commands will be refused; install util-linux to enable them."
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Is he actually alive?
 # ---------------------------------------------------------------------------
 step "health"
