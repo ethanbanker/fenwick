@@ -471,6 +471,11 @@ function ideasPage(cfg: Config, state: WorldState): string {
     ${
       i.stage === 'done'
         ? ''
+        : `<p class="faint"><b>Not in the town yet.</b> This is a request, not an object. It appears at tile ${i.tile.x},${i.tile.y} when the builder writes that file.</p>`
+    }
+    ${
+      i.stage === 'done'
+        ? ''
         : `<details><summary class="faint">hand this to the builder</summary><pre style="white-space:pre-wrap;font-size:12px;color:var(--dim)">${esc(exportText(i))}</pre></details>`
     }
   </div>`;
@@ -484,7 +489,13 @@ function ideasPage(cfg: Config, state: WorldState): string {
   <h2>already standing</h2>
   ${done.length ? done.map(card).join('') : '<p class="empty">Nothing has been built from an idea yet.</p>'}`;
 
-  return layout('ideas', cfg, state, body, `What he asked to have built, and what is still waiting.`);
+  return layout(
+    'ideas',
+    cfg,
+    state,
+    body,
+    `He asks for things; a builder makes them. Until the file exists it is only a request and cannot be seen in the town.`,
+  );
 }
 
 // ------------------------------------------------------------------ thoughts
