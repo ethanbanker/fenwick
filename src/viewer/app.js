@@ -533,6 +533,37 @@
     }
   }
 
+  /** Name tags for crystals nobody has collected yet, so whoever left one can
+      find it again. Drawn over the weather and the vignette so they always read. */
+  function drawCrystalTags(list, t) {
+    const pending = list
+      .filter((o) => o.state === 'waiting' || o.state === 'noticed' || o.state === 'found')
+      .slice(-10);
+    if (!pending.length) return;
+    bctx.save();
+    bctx.font = '5px ui-sans-serif, -apple-system, sans-serif';
+    bctx.textAlign = 'left';
+    bctx.textBaseline = 'middle';
+    for (const off of pending) {
+      const c = project(off.x + 0.5, off.y + 0.5);
+      if (c.sx < -60 || c.sx > baseW + 60 || c.sy < -40 || c.sy > baseH + 40) continue;
+      const bob = Math.sin(t * 1.8 + off.x * 0.9) * 1.6;
+      const who = String(off.from || 'someone').toUpperCase().slice(0, 14);
+      const what = off.state === 'found' ? 'LOOKING' : off.state === 'noticed' ? 'SEEN' : 'WAITING';
+      const label = `${who} \u00b7 ${what}`;
+      const w = Math.ceil(bctx.measureText(label).width) + 8;
+      const x = Math.round(c.sx - w / 2);
+      const y = Math.round(c.sy - 2 + bob) - 46;
+      bctx.fillStyle = 'rgba(10,8,7,0.8)';
+      bctx.fillRect(x, y, w, 10);
+      bctx.fillStyle = 'rgba(226,180,92,0.6)';
+      bctx.fillRect(x, y, 1, 10);
+      bctx.fillStyle = '#efe6d8';
+      bctx.fillText(label, x + 4, y + 5.5);
+    }
+    bctx.restore();
+  }
+
   // ---------------------------------------------------------------- the creature
 
   function drawCat() {
@@ -899,6 +930,8 @@
     applyNight(dark);
     drawWeather(snap ? snap.weather : 'clear', t);
     drawVignette();
+
+    if (snap) drawCrystalTags(snap.offerings || [], t);
 
     view.imageSmoothingEnabled = false;
     view.clearRect(0, 0, canvas.width, canvas.height);

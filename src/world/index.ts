@@ -190,9 +190,14 @@ function tick(): void {
 }
 
 function offeringsForWire(): unknown[] {
-  return state.offerings
-    .filter((o) => o.state === 'waiting' || o.state === 'noticed' || o.state === 'found' || o.state === 'kept')
-    .slice(-24)
+  // Uncollected crystals must never be pushed off the wire by ones he already
+  // kept, or the map would quietly stop showing the thing you just left.
+  const pending = state.offerings
+    .filter((o) => o.state === 'waiting' || o.state === 'noticed' || o.state === 'found')
+    .slice(-24);
+  const kept = state.offerings.filter((o) => o.state === 'kept').slice(-16);
+  return [...pending, ...kept]
+    .sort((a, b) => a.createdAt - b.createdAt)
     .map((o) => ({ id: o.id, x: o.tile.x, y: o.tile.y, state: o.state, from: o.from, at: o.createdAt }));
 }
 
