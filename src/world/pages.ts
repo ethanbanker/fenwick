@@ -282,6 +282,7 @@ function mindPage(cfg: Config, state: WorldState): string {
   <div class="meta">
     <span>mood <b>${moodBand(c.mood.valence)}</b></span>
     <span>energy <b>${energyBand(c.mood.energy)}</b></span>
+    <span>carrying <b>${c.inventory.food}</b> food, <b>${c.inventory.coins}</b> coins</span>
     <span>${esc(describeNeedsValues(c.needs))}</span>
   </div>
 

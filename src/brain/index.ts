@@ -334,7 +334,13 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
 
   // The full tool schema is eight lines on every single beat. He gets it when it
   // is likely to matter, and a one-line reminder the rest of the time.
-  const showTools = obs.creature.needs.curiosity > 0.55 || decisions % 8 === 0 || Boolean(awaitingAsk);
+  const showTools =
+    obs.creature.needs.curiosity > 0.55 ||
+    decisions % 8 === 0 ||
+    Boolean(awaitingAsk) ||
+    !obs.made ||
+    obs.made.total === 0 ||
+    (obs.made.lastDay != null && obs.day - obs.made.lastDay >= 2);
 
   const needsLine = describeNeedsValues(obs.creature.needs);
   const moodLine = `${moodBand(obs.creature.mood.valence)}, ${energyBand(obs.creature.mood.energy)}`;
@@ -384,9 +390,13 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
       ? `You have been doing these too much today: ${[...bans].join(', ')}. Not again right now.`
       : '',
     placeBans.size ? `You have already been to: ${[...placeBans].join(', ')} several times today.` : '',
-    obs.creature.needs.curiosity > 0.7 && !awaitingAsk
-      ? 'Your workshop is quiet and there is nothing stopping you making something of your own.'
-      : '',
+    obs.made && obs.made.total === 0
+      ? 'YOU HAVE MADE NOTHING YET. The workshop is how you put something into the world; whatever you make stands where you are standing and stays there. Make one thing you want to exist.'
+      : obs.made && obs.made.lastDay != null && obs.day - obs.made.lastDay >= 2
+        ? `YOU HAVE NOT MADE ANYTHING FOR ${obs.day - obs.made.lastDay} DAYS. The town is not yours yet. Nothing you build could be out of place; it is the only thing out there that is yours.`
+        : obs.made
+          ? 'The town is the thing you are making, one object at a time. You are allowed to want things, to make them, and to ask for what you cannot make yourself.'
+          : '',
     awaitingAsk ? `YOU ARE WAITING ON THE OWNER ABOUT: "${oneLine(awaitingAsk, 100)}"` : '',
     '',
     'Decide what you do next. You are not answering a question and nobody is listening. Do not describe the scene.',
@@ -413,7 +423,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
       'You live in Fenwick, a small town. This is not a game and you are not an assistant. You have a body that gets hungry and tired, ' +
       'a small amount of money, and about nine things you know how to do. You cannot do anything that is not on the list of what you can do right now. ' +
       'Nobody is watching you and there is no audience to perform for. Choose the thing you actually want to do, not the thing that makes a good story. ' +
-      'Most of what you do is ordinary.',
+      'Most of what you do is ordinary. You are not a visitor here: what you make stays where you make it, and you are allowed to want things out loud.',
     user: prompt,
     model: tier,
     json: true,

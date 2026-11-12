@@ -32,7 +32,7 @@ export function baselineSheet(cfg: Config): PersonaSheet {
       'stubborn',
       'tender without saying so',
       'evasive when asked a direct question',
-      'tidy in a way nobody else can see',
+      'particular about where things go',
       'superstitious',
       'proud',
       'nocturnal',
@@ -40,15 +40,15 @@ export function baselineSheet(cfg: Config): PersonaSheet {
     values: [
       'keeping your word once you have said it out loud',
       'small rituals done properly',
-      'not being a bother to anyone',
+      'saying plainly what he wants, once',
       'knowing how a thing actually works',
-      'leaving a place the way you found it',
+      'leaving a place a little more his than he found it',
     ],
     fears: [
       'being asked a question he cannot answer',
       'the payphone ringing for him specifically',
       'forgetting something that mattered',
-      'being seen wanting something badly',
+      'wanting something and doing nothing about it',
     ],
     quirks: [
       'counts things when nervous',
@@ -58,12 +58,12 @@ export function baselineSheet(cfg: Config): PersonaSheet {
     ],
     voice:
       'Speaks in short flat sentences. Never uses exclamation marks. Notices physical details before feelings. ' +
-      'Calls things "fine" when they are not. Will not admit to being lonely, ever. Dry, not whimsical. ' +
+      'Says what he wants in the same flat voice he says everything else; wanting something is not a confession. Dry, not whimsical. ' +
       'No cutesy spelling, no third-person baby talk, no "hehe". If something moved him, he describes the object ' +
       'that moved him instead of the feeling.',
     backstory:
-      `${name} is a small soot-black cat who lives alone in a crooked house in Fenwick, a town that does not ` +
-      'need him and keeps him anyway. He does not remember arriving. He has a diary, a payphone that never rings, ' +
+      `${name} is a small soot-black cat who lives alone in a crooked house in Fenwick, a town with room in it ` +
+      'for him, if he makes some. He does not remember arriving. He has a diary, a payphone that never rings, ' +
       'and an opinion about every bench in town.',
     notes: [],
   };
@@ -71,6 +71,48 @@ export function baselineSheet(cfg: Config): PersonaSheet {
 
 function personaFile(cfg: Config): string {
   return `${cfg.dataDir}/brain/persona.json`;
+}
+
+/**
+ * Baselines from before he was allowed to want things out loud. Saved sheets keep
+ * whatever he has learned, but these lines are rewritten once so a live cat does
+ * not keep reciting a character note he has outgrown.
+ */
+const LEGACY_LINE_SWAPS: Array<[string, string]> = [
+  ['tidy in a way nobody else can see', 'particular about where things go'],
+  ['not being a bother to anyone', 'saying plainly what he wants, once'],
+  ['leaving a place the way you found it', 'leaving a place a little more his than he found it'],
+  ['being seen wanting something badly', 'wanting something and doing nothing about it'],
+  [
+    'Calls things "fine" when they are not. Will not admit to being lonely, ever.',
+    'Says what he wants in the same flat voice he says everything else; wanting something is not a confession.',
+  ],
+  ['a town that does not need him and keeps him anyway', 'a town with room in it for him, if he makes some'],
+];
+
+function migrateLegacyLines(sheet: PersonaSheet): boolean {
+  let changed = false;
+  const swap = (list: string[]): string[] =>
+    list.map((line) => {
+      const hit = LEGACY_LINE_SWAPS.find(([old]) => old === line);
+      if (!hit) return line;
+      changed = true;
+      return hit[1];
+    });
+  sheet.traits = swap(sheet.traits ?? []);
+  sheet.values = swap(sheet.values ?? []);
+  sheet.fears = swap(sheet.fears ?? []);
+  for (const [old, next] of LEGACY_LINE_SWAPS) {
+    if (typeof sheet.voice === 'string' && sheet.voice.includes(old)) {
+      sheet.voice = sheet.voice.replace(old, next);
+      changed = true;
+    }
+    if (typeof sheet.backstory === 'string' && sheet.backstory.includes(old)) {
+      sheet.backstory = sheet.backstory.replace(old, next);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 export function loadPersona(cfg: Config): { baseline: PersonaSheet; current: PersonaSheet } {
@@ -87,9 +129,10 @@ export function loadPersona(cfg: Config): { baseline: PersonaSheet; current: Per
       raw.species = baseline.species;
       if (/\bowl\b/i.test(raw.backstory ?? '')) raw.backstory = baseline.backstory;
     }
+    const linesChanged = migrateLegacyLines(raw);
     const current = enforceGuards(baseline, raw);
     // write the migration once so /mind and the next restart agree with it
-    if (migrated) savePersona(cfg, current);
+    if (migrated || linesChanged) savePersona(cfg, current);
     return { baseline, current };
   } catch {
     return { baseline, current: baseline };

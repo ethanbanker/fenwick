@@ -251,7 +251,7 @@ function snapshot(): unknown {
     },
     offerings: offeringsForWire(),
     marks: state.marks.slice(-24).map((m) => ({ id: m.id, x: m.tile.x, y: m.tile.y, text: m.text, day: m.day })),
-    creations: state.creations.slice(-24).map((c) => ({
+    creations: state.creations.slice(-160).map((c) => ({
       id: c.id,
       x: c.tile.x,
       y: c.tile.y,
@@ -366,6 +366,10 @@ function observation(sinceEventId: number): unknown {
           preview: creationPreview(cfg, made.file, 120),
         };
       }),
+    made: {
+      total: state.creations.length,
+      lastDay: state.creations.length ? state.creations[state.creations.length - 1].day : null,
+    },
     pendingInspection: state.offerings
       .filter((o) => o.state === 'found')
       .map((o) => ({

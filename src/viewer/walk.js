@@ -2456,6 +2456,8 @@ import * as THREE from '/vendor/three.module.min.js';
     $('day').textContent = String(s.day);
     $('time').textContent = s.time || '—';
     $('weather').textContent = s.weather || '—';
+    const inv = c.inventory || { food: 0, coins: 0, trinkets: 0 };
+    $('kit-line').textContent = `${inv.food} food \u00b7 ${inv.coins} coins${inv.trinkets ? ` \u00b7 ${inv.trinkets} trinkets` : ''}`;
 
     if (townReady && !started) {
       started = true;
