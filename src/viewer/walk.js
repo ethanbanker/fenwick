@@ -24,38 +24,38 @@ import * as THREE from '/vendor/three.module.min.js';
   /* tile codes, mirrored from src/world/map.ts */
   const T = { grass: 0, road: 1, water: 2, plaza: 3, building: 4, tree: 5, rubble: 6, sand: 7, dirt: 8 };
   const TILE_COLOUR = [
-    '#16252a', // grass / planters
-    '#1b2330', // road
-    '#08242c', // water (under the surface)
-    '#262a36', // plaza
-    '#151a24', // building footprint
-    '#14262a', // tree / grass under it
-    '#2b2633', // rubble
-    '#2c2f2a', // sand
-    '#12201d', // dirt
+    '#3f6b45', // grass / planters
+    '#7a7f86', // road
+    '#1f6f86', // water (under the surface)
+    '#9a8f7c', // plaza
+    '#4c525c', // building footprint
+    '#2f5a3a', // tree / grass under it
+    '#6b6257', // rubble
+    '#c2ae82', // sand
+    '#6b5a43', // dirt
   ];
   const FACING_YAW = { e: Math.PI / 2, s: 0, w: -Math.PI / 2, n: Math.PI };
   const SKY_DAY = {
-    clear: { top: '#171a38', bottom: '#b04a72' },
-    overcast: { top: '#131625', bottom: '#4a3550' },
-    rain: { top: '#090c18', bottom: '#24142f' },
-    fog: { top: '#141626', bottom: '#3a2a44' },
-    wind: { top: '#102030', bottom: '#5a2a50' },
+    clear: { top: '#4f86b8', bottom: '#f2b07a' },
+    overcast: { top: '#6b7d90', bottom: '#b9b3a4' },
+    rain: { top: '#3e5568', bottom: '#6f6a66' },
+    fog: { top: '#7d8790', bottom: '#c7c0b0' },
+    wind: { top: '#4a7490', bottom: '#c98a6a' },
   };
-  const FOG_BY_WEATHER = { clear: 0.016, overcast: 0.022, rain: 0.032, fog: 0.052, wind: 0.018 };
-  const LIGHT_BY_WEATHER = { clear: 0.85, overcast: 0.5, rain: 0.3, fog: 0.25, wind: 0.75 };
+  const FOG_BY_WEATHER = { clear: 0.01, overcast: 0.014, rain: 0.022, fog: 0.03, wind: 0.012 };
+  const LIGHT_BY_WEATHER = { clear: 1.0, overcast: 0.82, rain: 0.62, fog: 0.55, wind: 0.92 };
 
   // The city is built from a handful of neon families rather than natural
   // materials: cold glass, wet concrete, and signage that does the talking.
   const STYLE = {
-    nest: { wall: '#151827', trim: '#26314a', neon: '#ff2d7a', accent: '#ff6b9d', glyph: '猫', height: 10 },
-    bakery: { wall: '#1d1826', trim: '#3a2a40', neon: '#ffb52e', accent: '#ffcf73', glyph: '麺', height: 8 },
-    laundrette: { wall: '#121d28', trim: '#1d4050', neon: '#19d6d6', accent: '#5ffbf1', glyph: '泡', height: 9 },
-    bar: { wall: '#1b0f24', trim: '#3e1a4c', neon: '#ff2d7a', accent: '#ff6b9d', glyph: '酒', height: 12 },
-    library: { wall: '#0e1a22', trim: '#1b3a3d', neon: '#5ffbf1', accent: '#9ffcf4', glyph: '書', height: 14 },
-    market: { wall: '#1f1918', trim: '#4a3420', neon: '#ffb52e', accent: '#ffcf73', glyph: '市', height: 8 },
-    salon: { wall: '#21121f', trim: '#4a2440', neon: '#ff6b9d', accent: '#ffb3c8', glyph: '髪', height: 10 },
-    tower: { wall: '#0b1420', trim: '#203248', neon: '#5ffbf1', accent: '#9ffcf4', glyph: '電', height: 22 },
+    nest: { wall: '#3a4a6b', trim: '#5f7fa8', neon: '#ff2d7a', accent: '#ff6b9d', glyph: '猫', height: 10 },
+    bakery: { wall: '#4a3a52', trim: '#7f5f80', neon: '#ffb52e', accent: '#ffcf73', glyph: '麺', height: 8 },
+    laundrette: { wall: '#2d4a5c', trim: '#4a8296', neon: '#19d6d6', accent: '#5ffbf1', glyph: '泡', height: 9 },
+    bar: { wall: '#4a2a5c', trim: '#803f9c', neon: '#ff2d7a', accent: '#ff6b9d', glyph: '酒', height: 12 },
+    library: { wall: '#2a4a55', trim: '#4a7f86', neon: '#5ffbf1', accent: '#9ffcf4', glyph: '書', height: 14 },
+    market: { wall: '#4f4034', trim: '#8a6a42', neon: '#ffb52e', accent: '#ffcf73', glyph: '市', height: 8 },
+    salon: { wall: '#4a2f45', trim: '#8a4f7f', neon: '#ff6b9d', accent: '#ffb3c8', glyph: '髪', height: 10 },
+    tower: { wall: '#2a4460', trim: '#4a7fa8', neon: '#5ffbf1', accent: '#9ffcf4', glyph: '電', height: 22 },
   };
 
   // ---------------------------------------------------------------- renderer
@@ -73,10 +73,10 @@ import * as THREE from '/vendor/three.module.min.js';
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.2;
+  renderer.toneMappingExposure = 1.35;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.setClearColor(0x0b0f10, 1);
+  renderer.setClearColor(0x3a5060, 1);
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x1a0f28, 0.02);
@@ -92,11 +92,11 @@ import * as THREE from '/vendor/three.module.min.js';
   // too limited: hard edges and palette dots do more for the look than detail.
 
   const PALETTE_HEX = [
-    '#0a0f18', '#111827', '#182335', '#1f2d42', '#28394f', '#334960',
-    '#415a70', '#527086', '#62879b', '#7fa6b2', '#a8c7c6', '#d5e4dc', '#fff4d6',
-    '#2a1338', '#3c1748', '#5a1c5c', '#7d1f66', '#a72170', '#ff2d7a', '#ff6b9d', '#ffb3c8',
-    '#0b3a44', '#0f5560', '#127782', '#19b6c0', '#5ffbf1',
-    '#4a2c06', '#8a4f07', '#d97a0c', '#ffb52e',
+    '#1c2530', '#2b3440', '#3a4654', '#4a5765', '#5a6a78', '#6c7d8b',
+    '#81929d', '#98a9b1', '#b0c0c4', '#c8d6d5', '#dfe8e2', '#f1f5ea', '#fff8e6',
+    '#4a2a5c', '#643a70', '#844a82', '#a85a92', '#cf6ea2', '#ff2d7a', '#ff6b9d', '#ffb3c8',
+    '#246a74', '#348a92', '#4aa8ac', '#7fe0dc', '#5ffbf1',
+    '#7a4a10', '#b06a18', '#df8a24', '#ffb52e',
   ];
   const PALETTE = PALETTE_HEX.map((hex) => {
     const n = parseInt(hex.slice(1), 16);
@@ -159,13 +159,13 @@ import * as THREE from '/vendor/three.module.min.js';
 
         vec3 col = pow(max(raw, vec3(0.0)), vec3(1.0 / 2.2));
         col = mix(vec3(luma(col)), col, 0.93);
-        col = (col - 0.5) * 1.13 + 0.5 + 0.008;
+        col = (col - 0.5) * 1.05 + 0.5 + 0.04;
 
         // Grade before quantization, never after: anything applied to a palette
         // colour would multiply it into shades and undo the limited palette.
         float edge = smoothstep(0.055, 0.3, abs(l - lx) + abs(l - ly));
         col *= 1.0 - edge * 0.3;
-        float vig = 1.0 - 0.18 * smoothstep(0.26, 0.82, length(vUv - 0.5));
+        float vig = 1.0 - 0.1 * smoothstep(0.26, 0.86, length(vUv - 0.5));
         col *= vig;
         float grain = fract(sin(dot(gl_FragCoord.xy + uTime * 0.7, vec2(12.9898, 78.233))) * 43758.5453);
         col += (grain - 0.5) * 0.02;
@@ -898,7 +898,7 @@ import * as THREE from '/vendor/three.module.min.js';
   }
 
   function buildFarGround() {
-    const g = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), mat('#05080f', 1));
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), mat('#3d5a46', 1));
     g.rotation.x = -Math.PI / 2;
     g.position.set(18, -0.045, 18);
     g.receiveShadow = true;
@@ -2652,6 +2652,20 @@ import * as THREE from '/vendor/three.module.min.js';
       box(0.06, 0.75, 0.06, 0x6b5b46, 0.24, 0.38, 0, g);
     }
 
+    // a small name over the thing, so his work can actually be found
+    const label = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: makeLabel(String(made.name || 'something').slice(0, 22)),
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
+    label.scale.set(0.9, 0.225, 1);
+    label.position.y = kind === 'sign' ? 1.7 : 2.35;
+    label.visible = false;
+    g.add(label);
+
     g.position.set(made.x + 0.5, 0, made.y + 0.5);
     if ((made.condition ?? 1) <= 0) {
       // it came apart where it stood
@@ -2668,7 +2682,7 @@ import * as THREE from '/vendor/three.module.min.js';
       glow = null;
     }
     scene.add(g);
-    return { group: g, glow, kind };
+    return { group: g, glow, kind, label };
   }
 
   function syncCreations(list) {
@@ -2702,6 +2716,11 @@ import * as THREE from '/vendor/three.module.min.js';
 
   function updateCreations(now) {
     for (const entry of creationMeshes.values()) {
+      const d = Math.hypot(entry.group.position.x - player.x, entry.group.position.z - player.z);
+      if (entry.label) {
+        entry.label.visible = d < 15;
+        entry.label.material.opacity = Math.max(0, 1 - d / 15) * 0.85;
+      }
       if (!entry.glow) continue;
       entry.glow.material.opacity = 0.1 + realSky.dark * 0.5 + Math.sin(now / 900 + entry.group.position.x) * 0.03;
     }
@@ -2713,26 +2732,29 @@ import * as THREE from '/vendor/three.module.min.js';
   const scratchBottom = new THREE.Color();
   const scratchSun = new THREE.Color();
   const warm = new THREE.Color('#e8a86a');
-  const nightTop = new THREE.Color('#0b1a2c');
-  const nightBottom = new THREE.Color('#2a1440');
+  const nightTop = new THREE.Color('#1e3a5c');
+  const nightBottom = new THREE.Color('#8a5566');
   const realSky = { minutes: 0, elev: 0, dark: 0, label: 'day' };
 
   function updateAtmosphere(now) {
-    // The sky follows the device's real local clock, independently of the
-    // simulation's accelerated day. Sunrise is ~06:00 and sunset ~18:00, with
-    // a soft twilight band around the horizon.
-    const clock = new Date();
-    const minutes = clock.getHours() * 60 + clock.getMinutes() + clock.getSeconds() / 60;
+    // The sky follows the town's clock rather than the visitor's: if it is
+    // morning for him the town is lit, wherever and whenever you are looking.
+    const fallback = new Date();
+    const minutes =
+      typeof snap?.minutes === 'number'
+        ? snap.minutes
+        : fallback.getHours() * 60 + fallback.getMinutes() + fallback.getSeconds() / 60;
     const weather = snap?.weather ?? 'clear';
     const angle = (minutes / 1440) * Math.PI * 2 - Math.PI / 2;
     const elev = Math.sin(angle);
     // night is a different colour, not the absence of one: he still has to be
     // able to see the town, and so does anyone walking through it
-    const dark = clamp((0.08 - elev) / 0.38, 0, 1) * 0.8;
+    const rawDark = clamp((0.08 - elev) / 0.38, 0, 1);
+    const dark = rawDark * 0.45;
     realSky.minutes = minutes;
     realSky.elev = elev;
     realSky.dark = dark;
-    realSky.label = dark > 0.7 ? 'night' : dark > 0.18 ? 'twilight' : 'day';
+    realSky.label = rawDark > 0.7 ? 'night' : rawDark > 0.18 ? 'twilight' : 'day';
     const day = SKY_DAY[weather] ?? SKY_DAY.clear;
 
     scratchTop.set(day.top).lerp(nightTop, dark);
@@ -2746,7 +2768,7 @@ import * as THREE from '/vendor/three.module.min.js';
     skyUniforms.top.value.copy(scratchTop);
     skyUniforms.bottom.value.copy(scratchBottom);
     scene.fog.color.copy(scratchBottom);
-    const targetFog = (FOG_BY_WEATHER[weather] ?? 0.01) * (1 + dark * 0.12);
+    const targetFog = (FOG_BY_WEATHER[weather] ?? 0.01) * (1 + dark * 0.02);
     scene.fog.density = damp(scene.fog.density, targetFog, 0.04);
 
     const isDay = elev > 0.015;
@@ -2756,19 +2778,19 @@ import * as THREE from '/vendor/three.module.min.js';
       sun.position.copy(sunPos);
       scratchSun.set('#ffd9b0').lerp(warm, clamp(1 - elev / 0.55, 0, 1) * 0.6);
       sun.color.copy(scratchSun);
-      sun.intensity = (0.38 + elev * 1.5) * (LIGHT_BY_WEATHER[weather] ?? 1);
+      sun.intensity = (0.95 + elev * 1.4) * (LIGHT_BY_WEATHER[weather] ?? 1);
     } else {
       sun.position.copy(moonPos);
       sun.color.set('#8fe9ff');
-      sun.intensity = 1.0 * (0.6 + dark * 0.4) * (LIGHT_BY_WEATHER[weather] ?? 1);
+      sun.intensity = 1.35 * (0.7 + dark * 0.3) * (LIGHT_BY_WEATHER[weather] ?? 1);
     }
     sun.target.position.set(18, 0, 18);
     sun.target.updateMatrixWorld();
 
     hemi.color.copy(scratchTop);
-    hemi.groundColor.set('#1a2530');
-    hemi.intensity = 0.6 + (1 - dark) * 0.45;
-    ambient.intensity = 0.32 + (1 - dark) * 0.16;
+    hemi.groundColor.set('#3a4a3a');
+    hemi.intensity = 0.95 + (1 - dark) * 0.4;
+    ambient.intensity = 0.55 + (1 - dark) * 0.25;
 
     const sunDir = sunPos.clone().normalize().multiplyScalar(225);
     sunDisc.position.copy(sunDir);
@@ -3001,9 +3023,10 @@ import * as THREE from '/vendor/three.module.min.js';
     }
 
     const clock = new Date();
-    const hh = String(clock.getHours()).padStart(2, '0');
-    const mm = String(clock.getMinutes()).padStart(2, '0');
-    $('sun').textContent = `local ${hh}:${mm} · ${realSky.label}`;
+    const mins = typeof snap?.minutes === 'number' ? snap.minutes : clock.getHours() * 60 + clock.getMinutes();
+    const hh = String(Math.floor(mins / 60) % 24).padStart(2, '0');
+    const mm = String(Math.floor(mins % 60)).padStart(2, '0');
+    $('sun').textContent = `${hh}:${mm} · ${realSky.label}`;
   }
 
   function showToast(text) {
