@@ -431,6 +431,30 @@ Restart after editing.
 
 ---
 
+## Admin
+
+`http://<host>:4321/admin` — a small panel for the things you would otherwise edit by
+hand:
+
+- **keys** — paste a Gemini, Groq, OpenRouter or DeepSeek key. It is written to `.env`
+  (mode 600, the previous file kept as `.env.bak`) and the brain restarts by itself to
+  pick it up. The town and his life keep running; only the thinking process reloads.
+- **daily budget** — calls today against `maxCallsPerDay`, which stage is live, and how
+  long ago the brain last reported.
+- **chain** — every stage with its model, whether its key is set, calls and refusals,
+  the last HTTP status, latency, and how long it is resting after a 429.
+- **rate limiting** — the last 40 limit and error events, with the cooldown each one
+  triggered, so you can see exactly which stage is resting and why.
+
+It is gated by a token in `data/admin-token`, created on first boot and printed in the
+world log (`admin panel: /admin (token: …)`). The page asks for it once and keeps it in
+the browser.
+
+Keys never leave the browser back to you: the panel only ever shows four characters at
+each end of a stored value.
+
+---
+
 ## His files
 
 Everything he is lives in `data/`, plain text and JSON, all readable:

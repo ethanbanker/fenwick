@@ -1,4 +1,5 @@
-import { loadConfig } from '../config.ts';
+import fs from 'node:fs';
+import { loadConfig, dataPath } from '../config.ts';
 import { clamp, oneLine } from '../util/text.ts';
 import { describeNeedsValues, energyBand, moodBand } from '../world/needs.ts';
 import { Brain, sleep } from './llm.ts';
@@ -11,6 +12,7 @@ import { startDiscord, type IncomingChat } from './discord.ts';
 import type { InspectionVerdict, ModelDecision, Observation } from './types.ts';
 
 const cfg = loadConfig();
+const reloadFile = dataPath(cfg, 'brain', 'reload.request');
 const brain = new Brain(cfg);
 const memory = loadMemory(cfg);
 let persona: { baseline: PersonaSheet; current: PersonaSheet } = loadPersona(cfg);
@@ -654,6 +656,20 @@ async function main(): Promise<void> {
     stopping = true;
   });
   while (!stopping) {
+    // The admin panel writes keys to .env and drops this flag. Only a supervised
+    // brain (src/start.ts) restarts itself; standalone runs are left alone.
+    if (fs.existsSync(reloadFile)) {
+      try {
+        fs.unlinkSync(reloadFile);
+      } catch {
+        /* already gone */
+      }
+      if (process.env.FENWICK_SUPERVISED === '1') {
+        log('keys changed on disk, restarting to pick them up');
+        process.exit(1);
+      }
+      log('keys changed on disk, but this brain is unsupervised: restart it to apply them');
+    }
     try {
       await beat();
     } catch (err) {

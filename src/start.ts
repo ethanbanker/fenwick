@@ -29,7 +29,9 @@ function start(proc: Proc): void {
   const child = spawn(process.execPath, [proc.entry], {
     cwd: ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
+    // The admin panel asks a supervised brain to restart itself after a key
+    // change; an unsupervised one must never exit on its own.
+    env: { ...process.env, FENWICK_SUPERVISED: '1', FENWICK_ROLE: proc.name },
   });
   children.set(proc.name, child);
 

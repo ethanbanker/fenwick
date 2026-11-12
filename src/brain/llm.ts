@@ -29,6 +29,45 @@ export type BudgetReport = {
   lastError: string | null;
 };
 
+/** One stage of the chain, as the admin panel sees it. No keys in here. */
+export type EndpointUsage = {
+  label: string;
+  model: string;
+  provider: string;
+  keyed: boolean;
+  calls: number;
+  failures: number;
+  lastStatus: number | null;
+  lastMs: number | null;
+  /** epoch ms; in the future while the stage is resting */
+  coolingUntil: number | null;
+};
+
+export type LimitEvent = {
+  at: number;
+  label: string;
+  model: string;
+  kind: 'rate-limit' | 'error';
+  /** how long the provider asked us to wait, when it said */
+  waitMs: number | null;
+  message: string;
+};
+
+export type BrainStatus = {
+  pid: number;
+  startedAt: number;
+  updatedAt: number;
+  dayKey: string;
+  callsToday: number;
+  maxCalls: number;
+  exhausted: boolean;
+  active: string;
+  coolingDown: boolean;
+  lastError: string | null;
+  endpoints: EndpointUsage[];
+  events: LimitEvent[];
+};
+
 type Endpoint = BrainEndpoint & { label: string };
 
 /** Carries the provider's own retry hint out of the fetch layer. */
@@ -81,11 +120,107 @@ export class Brain {
   private lastError: string | null = null;
   private queue: Promise<unknown> = Promise.resolve();
   private endpointCooling = new Map<string, number>();
+  private usage = new Map<string, EndpointUsage>();
+  private events: LimitEvent[] = [];
+  private startedAt = Date.now();
 
   constructor(cfg: Config) {
     this.cfg = cfg;
     this.dayKey = new Date().toISOString().slice(0, 10);
     this.loadBudget();
+    this.loadEvents();
+    this.persistStatus();
+  }
+
+  private statusFile(): string {
+    return `${this.cfg.dataDir}/brain/status.json`;
+  }
+
+  /** Recent limit events survive a restart, so the panel has history. */
+  private loadEvents(): void {
+    try {
+      const raw = JSON.parse(fs.readFileSync(this.statusFile(), 'utf8')) as { events?: LimitEvent[] };
+      if (Array.isArray(raw.events)) this.events = raw.events.slice(0, 80);
+    } catch {
+      /* first run */
+    }
+  }
+
+  private usageFor(endpoint: Endpoint): EndpointUsage {
+    let use = this.usage.get(endpoint.label);
+    if (!use) {
+      use = {
+        label: endpoint.label,
+        model: endpoint.model,
+        provider: endpoint.provider,
+        keyed: Boolean(endpoint.apiKey),
+        calls: 0,
+        failures: 0,
+        lastStatus: null,
+        lastMs: null,
+        coolingUntil: null,
+      };
+      this.usage.set(endpoint.label, use);
+    }
+    use.model = endpoint.model;
+    use.keyed = Boolean(endpoint.apiKey);
+    return use;
+  }
+
+  private note(label: string, model: string, kind: 'rate-limit' | 'error', message: string, waitMs: number | null): void {
+    this.events.unshift({ at: Date.now(), label, model, kind, waitMs, message: message.slice(0, 240) });
+    if (this.events.length > 80) this.events.length = 80;
+  }
+
+  /** The chain, its counters and the recent limits — for the admin panel. */
+  status(): BrainStatus {
+    this.rollDay();
+    const report = this.report();
+    const seen = new Set<string>();
+    const endpoints: EndpointUsage[] = [];
+    for (const endpoint of this.endpoints()) {
+      if (seen.has(endpoint.label)) continue;
+      seen.add(endpoint.label);
+      const use = this.usage.get(endpoint.label);
+      endpoints.push({
+        label: endpoint.label,
+        model: endpoint.model,
+        provider: endpoint.provider,
+        keyed: Boolean(endpoint.apiKey),
+        calls: use?.calls ?? 0,
+        failures: use?.failures ?? 0,
+        lastStatus: use?.lastStatus ?? null,
+        lastMs: use?.lastMs ?? null,
+        coolingUntil: this.endpointCooling.get(this.endpointId(endpoint)) ?? null,
+      });
+    }
+    return {
+      pid: process.pid,
+      startedAt: this.startedAt,
+      updatedAt: Date.now(),
+      dayKey: this.dayKey,
+      callsToday: report.callsToday,
+      maxCalls: report.max,
+      exhausted: report.exhausted,
+      active: this.activeLabel,
+      coolingDown: this.coolingDown,
+      lastError: report.lastError,
+      endpoints,
+      events: this.events.slice(0, 40),
+    };
+  }
+
+  /** Written after every attempt so the panel is live, not a guess. */
+  persistStatus(): void {
+    try {
+      fs.mkdirSync(`${this.cfg.dataDir}/brain`, { recursive: true });
+      const file = this.statusFile();
+      const tmp = `${file}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(this.status()));
+      fs.renameSync(tmp, file);
+    } catch {
+      /* non-fatal: the panel is a convenience, not the brain */
+    }
   }
 
   private budgetFile(): string {
@@ -117,6 +252,7 @@ export class Brain {
       this.callsToday = 0;
       this.lastError = null;
       this.endpointCooling.clear();
+      this.usage.clear();
       this.saveBudget();
     }
   }
@@ -241,6 +377,11 @@ export class Brain {
             this.callsToday += 1;
             this.saveBudget();
             this.lastError = null;
+            const good = this.usageFor(endpoint);
+            good.calls += 1;
+            good.lastStatus = 200;
+            good.lastMs = Date.now() - startedAt;
+            this.persistStatus();
             return { ok: true, text, model: modelName, ms: Date.now() - startedAt };
           } catch (err) {
             const message = (err as Error).message;
@@ -254,10 +395,20 @@ export class Brain {
               const waitMs = clampCooldown(hint ?? this.cfg.brain.cooldownMinutes * 60_000);
               this.endpointCooling.set(this.endpointId(endpoint), Date.now() + waitMs);
               lastErr += ` (skipped ${Math.round(waitMs / 1000)}s)`;
+              const limited = this.usageFor(endpoint);
+              limited.failures += 1;
+              limited.lastStatus = 429;
+              this.note(endpoint.label, modelName, 'rate-limit', message, waitMs);
               break;
             }
             const retriable = /503|502|timeout|overloaded|EAI_AGAIN|fetch failed/i.test(message);
-            if (!retriable || attempt >= 1) break;
+            if (!retriable || attempt >= 1) {
+              const failed = this.usageFor(endpoint);
+              failed.failures += 1;
+              failed.lastStatus = Number(/\b(\d{3})\b/.exec(message)?.[1] ?? 0) || null;
+              this.note(endpoint.label, modelName, 'error', message, null);
+              break;
+            }
             await sleep(1500 + Math.random() * 800);
           }
         }
@@ -265,6 +416,7 @@ export class Brain {
 
       // A refused request costs nothing, so it must not spend the day's budget.
       this.lastError = lastErr || 'all endpoints failed';
+      this.persistStatus();
       return { ok: false, text: '', error: this.lastError, model: lastModel, ms: Date.now() - startedAt };
     };
 

@@ -18,6 +18,7 @@ import {
 import { advanceNeeds } from './needs.ts';
 import { availableActions, completeAction, placeOf, startAction, type ActionContext } from './actions.ts';
 import { renderPage, type PageKind } from './pages.ts';
+import { adminAuthorized, adminStatus, adminToken, updateKeys } from './admin.ts';
 
 const cfg = loadConfig();
 const stateFile = dataPath(cfg, 'world-state.json');
@@ -519,6 +520,35 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ------------------------------------------------------------- admin
+    if (p === '/admin' || p === '/admin/') {
+      const html = fs
+        .readFileSync(path.join(ROOT, 'src', 'viewer', 'admin.html'), 'utf8')
+        .replaceAll('__CREATURE__', cfg.creature.name)
+        .replaceAll('__ADMIN__', cfg.town.name);
+      sendHtml(res, 200, html);
+      return;
+    }
+
+    if (p.startsWith('/api/admin/')) {
+      if (!adminAuthorized(req.headers['x-admin-token'], cfg)) {
+        sendJson(res, 401, { ok: false, error: 'admin token required' });
+        return;
+      }
+      if (p === '/api/admin/status') {
+        sendJson(res, 200, adminStatus(cfg));
+        return;
+      }
+      if (p === '/api/admin/keys' && req.method === 'POST') {
+        const body = await readJson<{ updates?: Record<string, unknown> }>(req);
+        const result = updateKeys(cfg, body.updates ?? {});
+        sendJson(res, result.ok ? 200 : 400, result);
+        return;
+      }
+      sendJson(res, 404, { ok: false, error: 'not found' });
+      return;
+    }
+
     // The town is the front door now: first person, no avatar, Mochi tracked live.
     if (p === '/' || p === '/walk' || p === '/walk/') {
       const html = fs
@@ -596,6 +626,7 @@ process.on('SIGTERM', () => {
 
 server.listen(cfg.port, cfg.host, () => {
   console.log(`[world] ${cfg.town.name} is running on http://localhost:${cfg.port}`);
+  console.log(`[world] admin panel: /admin (token: ${adminToken(cfg)})`);
   console.log(`[world] day ${state.clock.day}, ${timeLabel(state)} — ${state.weather.kind}`);
 });
 server.on('error', (err: NodeJS.ErrnoException) => {

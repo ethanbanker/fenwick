@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#14110f">
+<title>__ADMIN__ — admin</title>
+<style>
+  :root{
+    --ink:#efe6d8; --dim:#a8998a; --faint:#6f635a;
+    --amber:#e2b45c; --green:#8fbf7f; --red:#d0796a;
+    --line:rgba(238,226,208,.14); --panel:rgba(22,18,15,.72);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100%;background:radial-gradient(120% 90% at 50% 0%,#1a1512 0%,#0f0d0b 70%);
+    color:var(--ink);font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:26px 20px 60px}
+  a{color:var(--amber)}
+  .wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  h1{margin:0;font-family:ui-serif,Georgia,serif;font-weight:500;font-size:24px;letter-spacing:.06em}
+  h1 span{color:var(--faint);font-family:ui-sans-serif,sans-serif;font-size:10.5px;letter-spacing:.22em;
+    text-transform:uppercase;margin-left:10px}
+  .live{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .live i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);
+    margin-right:7px;vertical-align:middle;animation:pulse 2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+    backdrop-filter:blur(10px)}
+  .card h2{margin:0 0 12px;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);
+    font-weight:500}
+  .rowline{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .big{font-family:ui-serif,Georgia,serif;font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+  .big small{font-size:13px;color:var(--dim);font-family:inherit}
+  .bar{height:6px;border-radius:4px;background:rgba(238,226,208,.09);overflow:hidden;margin:13px 0 10px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--amber),#b98a41);transition:width .5s}
+  .meta{font-size:12px;color:var(--dim);display:flex;gap:18px;flex-wrap:wrap}
+  .meta b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-weight:500;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);padding:0 8px 8px 0;border-bottom:1px solid var(--line)}
+  td{padding:9px 8px 9px 0;border-bottom:1px solid rgba(238,226,208,.06);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--dim)}
+  .pill{display:inline-block;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+  .pill.ok{color:var(--green);border-color:rgba(143,191,127,.35)}
+  .pill.warn{color:var(--amber);border-color:rgba(226,180,92,.4)}
+  .pill.bad{color:var(--red);border-color:rgba(208,121,106,.4)}
+  .pill.off{color:var(--faint)}
+  ul.events{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;
+    max-height:280px;overflow:auto}
+  ul.events li{display:flex;gap:10px;font-size:12px;line-height:1.45;color:var(--dim)}
+  ul.events time{color:var(--faint);font-variant-numeric:tabular-nums;flex:none;font-size:11px;padding-top:1px}
+  ul.events .who{color:var(--ink);flex:none;min-width:86px}
+  ul.events .msg{color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .keys{display:flex;flex-direction:column;gap:11px}
+  .keyrow{display:grid;grid-template-columns:190px 1fr auto;gap:10px;align-items:center}
+  .keyrow .name{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--ink)}
+  .keyrow .state{font-size:11px;color:var(--faint);margin-top:3px}
+  input[type=password],input[type=text]{width:100%;background:rgba(12,10,9,.6);border:1px solid var(--line);
+    border-radius:7px;color:var(--ink);padding:8px 10px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  input:focus{outline:none;border-color:rgba(226,180,92,.55)}
+  button{background:rgba(226,180,92,.12);border:1px solid rgba(226,180,92,.4);color:var(--amber);
+    border-radius:7px;padding:8px 14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+  button:hover{background:rgba(226,180,92,.2)}
+  button.ghost{background:transparent;border-color:var(--line);color:var(--dim)}
+  .hint{font-size:11.5px;color:var(--faint);line-height:1.6}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:rgba(28,22,18,.96);border:1px solid rgba(226,180,92,.4);color:var(--ink);
+    padding:11px 18px;border-radius:9px;font-size:12px;opacity:0;transition:.25s;pointer-events:none;z-index:40}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .gate{position:fixed;inset:0;background:rgba(10,8,7,.94);display:flex;align-items:center;
+    justify-content:center;z-index:50}
+  .gate.hidden{display:none}
+  .gate form{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;
+    width:min(380px,90vw);display:flex;flex-direction:column;gap:12px}
+  .gate h3{margin:0;font-family:ui-serif,Georgia,serif;font-weight:500;font-size:17px}
+  @media (max-width:720px){
+    .keyrow{grid-template-columns:1fr;gap:6px}
+    .big{font-size:28px}
+  }
+</style>
+</head>
+<body>
+<div class="gate hidden" id="gate">
+  <form id="gate-form">
+    <h3>admin token</h3>
+    <p class="hint">Printed by the world on boot, and stored on the container at
+      <span class="mono">data/admin-token</span>.</p>
+    <input id="gate-token" type="password" autocomplete="current-password" placeholder="paste token">
+    <button type="submit">unlock</button>
+  </form>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1>__CREATURE__<span>admin</span></h1>
+    <div class="live"><i id="dot"></i><span id="conn">connecting</span></div>
+  </header>
+
+  <section class="card">
+    <h2>daily budget</h2>
+    <div class="rowline">
+      <div class="big"><span id="calls">—</span><small> / <span id="max">—</span> calls</small></div>
+      <span class="pill" id="budget-state">—</span>
+    </div>
+    <div class="bar"><i id="budget-bar" style="width:0%"></i></div>
+    <div class="meta">
+      <span>active <b id="active">—</b></span>
+      <span>updated <b id="updated">—</b></span>
+      <span>brain pid <b id="pid">—</b></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>chain</h2>
+    <table>
+      <thead><tr>
+        <th>stage</th><th>model</th><th>state</th>
+        <th>calls</th><th>refused</th><th>last</th><th>latency</th>
+      </tr></thead>
+      <tbody id="chain"><tr><td colspan="7" class="hint">waiting for the brain…</td></tr></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>rate limiting &amp; errors</h2>
+    <ul class="events" id="events"><li><time>—</time><span class="msg">nothing yet</span></li></ul>
+    <p class="hint" style="margin:10px 0 0">A stage that answers 429 rests for the window the provider
+      asks for, then the chain scans to the next one. Refused requests do not spend the daily budget.</p>
+  </section>
+
+  <section class="card">
+    <h2>keys</h2>
+    <div class="keys" id="keys"></div>
+    <p class="hint" style="margin:14px 0 0">
+      Saved to <span class="mono" id="envfile">.env</span> (mode 600, previous file kept as
+      <span class="mono">.env.bak</span>). The brain restarts on its own to pick them up; the town and
+      his life keep running. A masked value means the key is set — leave the field empty to keep it.
+      <br>Free keys:
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Gemini</a> ·
+      <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">Groq</a> ·
+      <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">OpenRouter</a>
+    </p>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const TOKEN_KEY = 'fenwick-admin-token';
+  const KEY_NAMES = ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','DEEPSEEK_API_KEY',
+                     'DISCORD_BOT_TOKEN','DISCORD_CHANNEL_ID'];
+  let token = localStorage.getItem(TOKEN_KEY) || '';
+  let timer = null;
+  let lastOk = 0;
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  function gate(show) { $('gate').classList.toggle('hidden', !show); }
+
+  $('gate-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const value = $('gate-token').value.trim();
+    if (!value) return;
+    token = value;
+    localStorage.setItem(TOKEN_KEY, token);
+    gate(false);
+    load();
+  });
+
+  function ago(ms) {
+    if (!ms) return '—';
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    return Math.round(s / 3600) + 'h ago';
+  }
+
+  function until(ms) {
+    const s = Math.max(0, Math.round((ms - Date.now()) / 1000));
+    if (s < 60) return s + 's';
+    return Math.round(s / 60) + 'm ' + (s % 60) + 's';
+  }
+
+  function clock(ms) {
+    const d = new Date(ms);
+    return d.toTimeString().slice(0, 8);
+  }
+
+  function render(data) {
+    const b = data.brain;
+    const cfg = data.config;
+    $('conn').textContent = b ? 'live' : 'brain not reporting yet';
+    $('dot').style.background = b ? 'var(--green)' : 'var(--amber)';
+    $('envfile').textContent = data.envFile || '.env';
+
+    const calls = b ? b.callsToday : 0;
+    const max = b ? b.maxCalls : cfg.maxCallsPerDay;
+    $('calls').textContent = calls;
+    $('max').textContent = max;
+    $('budget-bar').style.width = Math.min(100, max ? (calls / max) * 100 : 0) + '%';
+    const st = $('budget-state');
+    if (b && b.exhausted) { st.textContent = 'spent'; st.className = 'pill bad'; }
+    else if (b && b.coolingDown) { st.textContent = 'every stage resting'; st.className = 'pill warn'; }
+    else { st.textContent = 'open'; st.className = 'pill ok'; }
+    $('active').textContent = b ? b.active : '—';
+    $('updated').textContent = b ? ago(b.updatedAt) : '—';
+    $('pid').textContent = b ? b.pid : '—';
+
+    const rows = (b && b.endpoints) || [];
+    $('chain').innerHTML = rows.length ? rows.map((e) => {
+      const cooling = e.coolingUntil && e.coolingUntil > Date.now();
+      let cls = 'ok', label = 'ready';
+      if (!e.keyed) { cls = 'off'; label = 'no key'; }
+      else if (cooling) { cls = 'warn'; label = 'resting ' + until(e.coolingUntil); }
+      else if (e.failures && e.lastStatus && e.lastStatus !== 200) { cls = 'bad'; label = 'last ' + e.lastStatus; }
+      const last = e.lastStatus ? e.lastStatus : '—';
+      return '<tr>' +
+        '<td>' + esc(e.label) + '</td>' +
+        '<td class="mono">' + esc(e.model) + '</td>' +
+        '<td><span class="pill ' + cls + '">' + esc(label) + '</span></td>' +
+        '<td>' + e.calls + '</td>' +
+        '<td>' + e.failures + '</td>' +
+        '<td class="mono">' + last + '</td>' +
+        '<td class="mono">' + (e.lastMs == null ? '—' : e.lastMs + 'ms') + '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="7" class="hint">no stages reported</td></tr>';
+
+    const events = (b && b.events) || [];
+    $('events').innerHTML = events.length ? events.map((ev) => {
+      const wait = ev.waitMs ? 'rest ' + Math.round(ev.waitMs / 1000) + 's' : '';
+      return '<li><time>' + clock(ev.at) + '</time>' +
+        '<span class="who">' + esc(ev.label) + '</span>' +
+        '<span class="pill ' + (ev.kind === 'rate-limit' ? 'warn' : 'bad') + '">' +
+          (ev.kind === 'rate-limit' ? 'limit' : 'error') + (wait ? ' · ' + wait : '') + '</span>' +
+        '<span class="msg" title="' + esc(ev.message) + '">' + esc(ev.message) + '</span></li>';
+    }).join('') : '<li><time>—</time><span class="msg">nothing yet</span></li>';
+
+    const keyRows = KEY_NAMES.map((name) => {
+      const info = data.keys[name] || { set: false, hint: null };
+      return '<div class="keyrow">' +
+        '<div><div class="name">' + name + '</div>' +
+        '<div class="state">' + (info.set ? 'set · ' + esc(info.hint) : 'not set') + '</div></div>' +
+        '<input type="password" data-key="' + name + '" placeholder="' +
+          (info.set ? 'leave empty to keep' : 'paste key') + '" autocomplete="off">' +
+        '<button class="ghost" data-save="' + name + '">save</button>' +
+      '</div>';
+    }).join('');
+    const keysBox = $('keys');
+    if (keysBox.dataset.ready !== '1') {
+      keysBox.innerHTML = keyRows;
+      keysBox.dataset.ready = '1';
+    }
+  }
+
+  async function saveKey(name) {
+    const input = document.querySelector('input[data-key="' + name + '"]');
+    const value = (input.value || '').trim();
+    if (!value) { toast('nothing to save for ' + name); return; }
+    try {
+      const res = await fetch('/api/admin/keys', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ updates: { [name]: value } }),
+      });
+      if (res.status === 401) { token = ''; localStorage.removeItem(TOKEN_KEY); gate(true); return; }
+      const data = await res.json();
+      if (!data.ok) { toast(data.error || 'could not save'); return; }
+      input.value = '';
+      $('keys').dataset.ready = '0';
+      toast(name + ' saved — brain restarting');
+      setTimeout(load, 1200);
+    } catch (err) {
+      toast('request failed: ' + err.message);
+    }
+  }
+
+  $('keys').addEventListener('click', (e) => {
+    const name = e.target.getAttribute && e.target.getAttribute('data-save');
+    if (name) saveKey(name);
+  });
+
+  async function load() {
+    if (!token) { gate(true); return; }
+    try {
+      const res = await fetch('/api/admin/status', { headers: { 'x-admin-token': token } });
+      if (res.status === 401) { token = ''; localStorage.removeItem(TOKEN_KEY); gate(true); return; }
+      const data = await res.json();
+      lastOk = Date.now();
+      gate(false);
+      render(data);
+    } catch (err) {
+      $('conn').textContent = 'no answer from the town';
+      $('dot').style.background = 'var(--red)';
+    }
+  }
+
+  function schedule() {
+    clearInterval(timer);
+    timer = setInterval(() => { if (!document.hidden) load(); }, 3000);
+  }
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+
+  load();
+  schedule();
+})();
+</script>
+</body>
+</html>
