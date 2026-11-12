@@ -26,6 +26,8 @@ import {
 } from './creations.ts';
 import { conditionWord, inferKind, isCreationKind, kindLabel } from '../util/creation-kinds.ts';
 import { ensureProject } from './project.ts';
+import { reconcileIdeas, reserveIdea } from './ideas.ts';
+import { pendingIdeas, sanitizeDraft } from '../ideas.ts';
 import { renderPage, type PageKind } from './pages.ts';
 import { adminAuthorized, adminStatus, adminToken, updateKeys } from './admin.ts';
 import { readThoughts } from '../brain/thoughts.ts';
@@ -185,6 +187,8 @@ function tick(): void {
   decayCreations(cfg, state, dt);
   // one thing he wants to exist, always: a reason to build besides hunger
   ensureProject(state, town);
+  // an idea is finished when its file exists, not when it was described
+  reconcileIdeas(cfg, state);
 
   const creaturePlace = placeOf(town, state.creature.pos);
   state.creature.atPlace = creaturePlace;
@@ -372,6 +376,7 @@ function observation(sinceEventId: number): unknown {
         };
       }),
     project: state.project,
+    ideas: pendingIdeas(cfg.dataDir).map((i) => i.title),
     made: {
       total: state.creations.length,
       lastDay: state.creations.length ? state.creations[state.creations.length - 1].day : null,
@@ -622,6 +627,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (p === '/api/idea' && req.method === 'POST') {
+      const body = await readJson<{ title?: unknown; slug?: unknown; kind?: unknown; idea?: unknown; details?: unknown }>(req);
+      const draft = sanitizeDraft(body);
+      if (!draft) {
+        sendJson(res, 400, { ok: false, error: 'an idea needs a title, a kind, and a real description' });
+        return;
+      }
+      const idea = reserveIdea(cfg, state, town, draft);
+      sendJson(res, 200, { ok: true, id: idea.id, target: idea.target, tile: idea.tile });
+      return;
+    }
+
     if (p.startsWith('/api/admin/')) {
       if (!adminAuthorized(req.headers['x-admin-token'], cfg)) {
         sendJson(res, 401, { ok: false, error: 'admin token required' });
@@ -673,6 +690,7 @@ const server = http.createServer(async (req, res) => {
       '/mind': 'mind',
       '/offerings': 'offerings',
       '/thoughts': 'thoughts',
+      '/ideas': 'ideas',
     };
     if (pageRoutes[p]) {
       const html = renderPage(pageRoutes[p], cfg, state, town, url);

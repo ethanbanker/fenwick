@@ -9,8 +9,9 @@ import { readThoughts } from '../brain/thoughts.ts';
 import { loadPersona, personaDrift } from '../brain/persona.ts';
 import { loadInterests, loadReadings, topInterests } from '../brain/browse.ts';
 import { listDiary } from '../brain/diary.ts';
+import { exportText, listIdeas } from '../ideas.ts';
 
-export type PageKind = 'diary' | 'memories' | 'mind' | 'offerings' | 'thoughts';
+export type PageKind = 'diary' | 'memories' | 'mind' | 'offerings' | 'thoughts' | 'ideas';
 
 const CSS = `
 :root{
@@ -121,6 +122,7 @@ function layout(kind: PageKind, cfg: Config, state: WorldState, body: string, su
     ['memories', '/memories', 'memories'],
     ['mind', '/mind', 'mind'],
     ['offerings', '/offerings', 'offerings'],
+    ['ideas', '/ideas', 'ideas'],
   ];
   const night = darkness(state) > 0.5;
   return `<!DOCTYPE html>
@@ -453,6 +455,38 @@ function offeringsPage(cfg: Config, state: WorldState): string {
   );
 }
 
+// ------------------------------------------------------------------ ideas
+
+function ideasPage(cfg: Config, state: WorldState): string {
+  const ideas = listIdeas(cfg.dataDir).slice().reverse();
+  const pending = ideas.filter((i) => i.stage === 'pending' || i.stage === 'claimed');
+  const done = ideas.filter((i) => i.stage === 'done');
+
+  const card = (i: (typeof ideas)[number]): string => `<div class="card">
+    <h3>${esc(i.title)} <span class="faint">${esc(i.stage)}</span></h3>
+    <p class="dim">${esc(i.kind)} \u00b7 day ${i.day} ${esc(i.time)} \u00b7 tile ${i.tile.x},${i.tile.y}${i.place ? ` \u00b7 ${esc(i.place)}` : ''}</p>
+    <p>${esc(i.idea)}</p>
+    ${i.details.length ? `<ul>${i.details.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
+    <p class="faint">finished file goes to <code>data/workshop/${esc(i.target)}</code> \u00b7 id ${esc(i.id)}</p>
+    ${
+      i.stage === 'done'
+        ? ''
+        : `<details><summary class="faint">hand this to the builder</summary><pre style="white-space:pre-wrap;font-size:12px;color:var(--dim)">${esc(exportText(i))}</pre></details>`
+    }
+  </div>`;
+
+  const body = `${statusLine(cfg, state)}
+  <div class="card">
+    <p class="dim">He describes what should exist; a builder writes the file; the town puts it at the tile reserved here. Nothing he asks for is built inside his own model call.</p>
+  </div>
+  <h2>waiting to be built</h2>
+  ${pending.length ? pending.map(card).join('') : '<div class="card"><p class="empty">Nothing waiting. He has not wanted anything new yet.</p></div>'}
+  <h2>already standing</h2>
+  ${done.length ? done.map(card).join('') : '<p class="empty">Nothing has been built from an idea yet.</p>'}`;
+
+  return layout('ideas', cfg, state, body, `What he asked to have built, and what is still waiting.`);
+}
+
 // ------------------------------------------------------------------ thoughts
 
 function thoughtsPage(cfg: Config, state: WorldState): string {
@@ -518,6 +552,8 @@ export function renderPage(
       return offeringsPage(cfg, state);
     case 'thoughts':
       return thoughtsPage(cfg, state);
+    case 'ideas':
+      return ideasPage(cfg, state);
     default:
       return diaryPage(cfg, state);
   }

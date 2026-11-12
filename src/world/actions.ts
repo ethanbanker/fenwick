@@ -5,6 +5,7 @@ import { clamp } from '../util/text.ts';
 import { addEvent, isNight, msForWorldMinutes, type Creation, type WorldState } from './state.ts';
 import { creationPreview, creationStage } from './creations.ts';
 import type { CreationKind } from '../util/creation-kinds.ts';
+import { pendingIdeas } from '../ideas.ts';
 import type { Town } from './map.ts';
 import { applyMoodDelta, applyNeedDelta, needUrgency } from './needs.ts';
 import { T } from './map.ts';
@@ -419,6 +420,8 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
       if (!canEat) continue;
     }
     if (spec.id === 'make' && !cfg.workshop.enabled) continue;
+    // no piling up requests the builder has not answered yet
+    if (spec.id === 'make' && pendingIdeas(cfg.dataDir).length >= 3) continue;
     if (spec.id === 'drink' && c.inventory.coins < 1) continue;
     if (spec.id === 'groom' && c.inventory.coins < 1) continue;
     const cd = c.cooldowns[spec.id] ?? 0;

@@ -354,6 +354,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     `MOOD: ${moodLine}.`,
     `CARRYING: ${obs.creature.inventory.food} food, ${obs.creature.inventory.coins} coins.`,
     obs.project ? `YOU WANT TO MAKE: ${obs.project.text}.` : '',
+    obs.ideas?.length ? `WAITING TO BE BUILT: ${obs.ideas.join('; ')}.` : '',
     finished ? `YOU JUST FINISHED: ${finished}.` : '',
     obs.creature.action ? `YOU ARE CURRENTLY: ${obs.creature.action.label}.` : '',
     workingMemory.length ? `WHAT YOU WERE JUST THINKING:\n${workingDigest()}` : '',
@@ -392,7 +393,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
       : '',
     placeBans.size ? `You have already been to: ${[...placeBans].join(', ')} several times today.` : '',
     obs.made && obs.made.total === 0
-      ? 'YOU HAVE MADE NOTHING YET. The workshop is how you put something into the world; whatever you make stands where you are standing and stays there. Make one thing you want to exist.'
+      ? 'YOU HAVE MADE NOTHING YET. Choose make and describe the thing you want to exist; it will be built for you and stand where you are. One object is enough to start.'
       : obs.made && obs.made.lastDay != null && obs.day - obs.made.lastDay >= 2
         ? `YOU HAVE NOT MADE ANYTHING FOR ${obs.day - obs.made.lastDay} DAYS. The town is not yours yet. Nothing you build could be out of place; it is the only thing out there that is yours.`
         : obs.made
@@ -407,7 +408,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     showTools
       ? 'You may attach one optional "tool" to that same JSON, if you actually want it right now:\n' +
         '  {"tool":{"name":"keep","text":"one sentence worth keeping forever"}} — the box that never fades.\n' +
-        '  {"tool":{"name":"write","path":"lamp.html","kind":"light","text":"the whole file"}} — make something. "kind" is one of light, shelter, seat, sign, garden, ornament; it stands in the town where you are, and you can use it or mend it later.\n' +
+        '  There is no "write" any more. Anything you want built, you ask for with the make action: describe the idea, and it is built for you and placed beside you.\n' +
         '  {"tool":{"name":"read","path":"garden.html"}}\n' +
         '  {"tool":{"name":"run","command":"ls"}} — only ls, cat, head, tail, wc, date, echo, mkdir, node --check <file>, inside the workshop.\n' +
         '  {"tool":{"name":"ask","command":"node build.js","note":"why"}} — anything else; waits for the owner to approve, output comes back next turn.\n' +
@@ -543,26 +544,27 @@ async function consolidateNow(obs: Observation, why: string): Promise<void> {
 /**
  * The making turn.
  *
- * Building used to be a tool crammed into the 400-token decision reply, so the
- * file never fit and he never built anything. Choosing `make` earns a second,
- * separate call whose only job is the object, with a budget that can hold it.
+ * He describes the thing he wants to exist; he does not write it. The idea goes
+ * to the world as a build brief, and an outside builder turns it into a file.
+ * That is deliberate: the object is executed where it is cheap and unbounded,
+ * and all he contributes is the idea and the judgement about whether it was
+ * what he meant.
  */
-async function makeSomething(obs: Observation): Promise<void> {
+async function makeIdea(obs: Observation): Promise<void> {
   if (!cfg.workshop.enabled) return;
   if (!brain.keyPresent || brain.report().exhausted || brain.coolingDown) {
     log('he wanted to make something but there is no model room; the idea waits');
-    appendLog(cfg, obs.day, `[${obs.time}] no model room to make anything`);
+    appendLog(cfg, obs.day, `[${obs.time}] no model room to describe an idea`);
     return;
   }
   const want = obs.project;
-  log(`he is making ${want ? `"${want.text}"` : 'something of his own'}`);
-  const res = await brain.json<{ path?: string; kind?: string; text?: string }>({
+  log(`he is working out ${want ? `"${want.text}"` : 'something of his own'}`);
+  const res = await brain.json<{ title?: string; slug?: string; kind?: string; idea?: string; details?: unknown }>({
     system:
-      `${brief()}\n\nYou are in your workshop, making one object for the town you live in. ` +
-      'You are not talking to anyone. What you write is the object itself: it will stand at the spot you are standing on, ' +
-      'and anyone walking the town will see it. Make something you actually want there, not a demonstration. ' +
-      'Plain HTML and CSS in one file, no external files, no network, no scripts that fetch anything. ' +
-      'Under about six thousand characters. It should look like a thing in a dim neon town, not like a webpage.',
+      `${brief()}\n\nYou are in your workshop, working out one thing you want to exist in the town. ` +
+      'You are not talking to anyone and you are not writing code. Say what the thing is well enough that somebody else could build it: ' +
+      'what it looks like, what it is made of, how it sits in a dim neon street, what is slightly wrong with it. ' +
+      'One object, not a plan for a district. It will be built for you and placed where you are standing.',
     user: [
       `Day ${obs.day}, ${obs.time}. Weather: ${obs.weather}.`,
       obs.place ? `You are at ${obs.place.name} — ${obs.place.blurb}.` : 'You are standing in the street.',
@@ -572,38 +574,38 @@ async function makeSomething(obs: Observation): Promise<void> {
         : '',
       '',
       'Reply with JSON only:',
-      '{"path":"corner-lamp.html","kind":"light","text":"the whole file"}',
-      'path is lowercase words with dashes and a .html ending. kind is one of light, shelter, seat, sign, garden, ornament. ' +
-        'text is the entire file, escaped the way JSON requires.',
+      '{"title":"A bench that faces the water","slug":"bench-facing-water","kind":"seat","idea":"One short paragraph: the object itself, not a plan.","details":["the paint is worn through on one arm","a small brass plate nobody can read"]}',
+      'kind is one of light, shelter, seat, sign, garden, ornament. details is up to five short sentences. Do not write HTML.',
     ]
       .filter(Boolean)
       .join('\n'),
     model: 'quality',
     json: true,
-    maxTokens: 2200,
-    temperature: 0.9,
+    maxTokens: 600,
+    temperature: 0.95,
   });
 
-  if (!res.ok || !res.data?.text) {
-    log(`he could not finish it: ${res.error ?? 'nothing written'}`);
-    appendLog(cfg, obs.day, `[${obs.time}] could not finish making anything`);
+  if (!res.ok || !res.data) {
+    log(`no idea came out of it: ${res.error ?? 'nothing written'}`);
+    appendLog(cfg, obs.day, `[${obs.time}] could not describe an idea`);
     return;
   }
 
-  const rawPath = String(res.data.path ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  const file = rawPath.endsWith('.html') ? rawPath : `made-day-${obs.day}.html`;
-  const outcome = runTool(
-    cfg,
-    vault,
-    { name: 'write', path: file, kind: String(res.data.kind ?? ''), text: String(res.data.text) },
-    obs.day,
-  );
-  if (outcome) {
-    log(`made ${file}: ${outcome.ok ? 'it is standing there' : outcome.message}`);
-    appendLog(cfg, obs.day, `[${obs.time}] made ${oneLine(file, 80)}: ${outcome.ok ? 'standing there' : oneLine(outcome.message, 160)}`);
+  const filed = await post('/api/idea', {
+    title: res.data.title,
+    slug: res.data.slug,
+    kind: res.data.kind,
+    idea: res.data.idea,
+    details: res.data.details,
+    want: want?.text ?? null,
+  });
+  if (filed.ok) {
+    const data = (filed.data ?? {}) as { id?: string; target?: string };
+    log(`idea filed: ${String(res.data.title ?? 'something')} (${data.id ?? 'no id'}) → ${data.target ?? 'workshop'}`);
+    appendLog(cfg, obs.day, `[${obs.time}] idea: ${oneLine(String(res.data.title ?? 'something'), 100)} → ${data.target ?? 'the workshop'}`);
+  } else {
+    log(`the world would not take the idea: ${filed.data?.error ?? filed.status}`);
+    appendLog(cfg, obs.day, `[${obs.time}] idea refused: ${oneLine(String(filed.data?.error ?? filed.status), 160)}`);
   }
 }
 
@@ -656,7 +658,7 @@ async function handleFinished(obs: Observation): Promise<void> {
   }
 
   if (finished.id === 'make') {
-    await makeSomething(obs);
+    await makeIdea(obs);
   }
 
   if (finished.id === 'sleep') {

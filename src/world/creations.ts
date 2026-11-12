@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Config } from '../config.ts';
 import type { Point } from '../util/geo.ts';
-import { inferKind, readKindHints, type CreationKind } from '../util/creation-kinds.ts';
+import { inferKind, readKindHints, rememberKind, type CreationKind } from '../util/creation-kinds.ts';
+import { ideaForFile } from '../ideas.ts';
 import { addEvent, hoursElapsed, type Creation, type WorldState } from './state.ts';
 import { T, type Town } from './map.ts';
 
@@ -137,9 +138,12 @@ export function syncCreations(cfg: Config, state: WorldState, town: Town | null 
       continue;
     }
     if (Date.now() - mtime < SETTLE_MS) continue;
+    const planned = ideaForFile(cfg.dataDir, file);
     const name = creationName(file);
-    const kind = hints[file] ?? inferKind(name, creationPreview(cfg, file, 200));
-    const tile = pickCreationTile(state, town);
+    const kind = planned?.kind ?? hints[file] ?? inferKind(name, creationPreview(cfg, file, 200));
+    // an idea booked its spot before the builder ever wrote the file
+    const tile = planned ? planned.tile : pickCreationTile(state, town);
+    if (planned) rememberKind(cfg.dataDir, file, planned.kind);
     const creation: Creation = {
       id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 4)}`,
       file,

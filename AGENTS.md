@@ -18,6 +18,11 @@ deploy.
 - **His body and effects must be shown, not just simulated.** Needs, mood, inventory and
   what he made belong on the HUD (`src/viewer/walk.html`, `src/viewer/index.html`) and on
   `/mind`, not only in `/api/state`.
+- **He asks for ideas; he does not write the object.** `make` produces a brief in
+  `data/ideas/pending/`, with a reserved tile and target path, and an outside builder
+  (Freebuff on the server) executes it. Never make him emit HTML inside a decision
+  reply, and never let the idea queue write into `data/workshop` itself. An idea is
+  done only when its target file exists.
 - **The action vocabulary stays closed.** He chooses from `availableActions`; never let
   the model invent an effect. New behaviours get a declared kind or action with explicit
   effects and caps.

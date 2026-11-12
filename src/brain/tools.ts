@@ -4,15 +4,16 @@ import { spawnSync } from 'node:child_process';
 import type { Config } from '../config.ts';
 import type { ToolCall } from './types.ts';
 import type { Vault } from './vault.ts';
-import { chownToBench, submit } from '../bench.ts';
-import { isCreationKind, kindLabel, rememberKind } from '../util/creation-kinds.ts';
+import { submit } from '../bench.ts';
+
 
 /**
  * What he can do with his hands.
  *
- * Deliberately not a shell. He can keep a sentence for good, write and read
- * files inside data/workshop (served read-only at /world/), and run a short
- * allowlist of commands there. No shell, no absolute paths, no secrets in the
+ * Deliberately not a shell. He can keep a sentence for good, read files inside
+ * data/workshop (served read-only at /world/), and run a short allowlist of
+ * commands there. Building is not his job any more: he files an idea and an
+ * outside builder writes it. No shell, no absolute paths, no secrets in the
  * child's environment, a timeout, and capped output. Anything bigger than this
  * is a decision for whoever owns the machine, not a default.
  */
@@ -73,27 +74,11 @@ export function runTool(cfg: Config, vault: Vault, tool: ToolCall | undefined, d
   }
 
   if (tool.name === 'write') {
-    const root = workshopDir(cfg);
-    const file = resolveInside(root, String(tool.path ?? ''));
-    if (!file) return { ok: false, message: 'that path is outside the workshop' };
-    const text = String(tool.text ?? '');
-    if (!text.trim()) return { ok: false, message: 'there is nothing to write' };
-    const bytes = Buffer.byteLength(text);
-    if (bytes > cfg.workshop.maxFileBytes) {
-      return { ok: false, message: `that file is too big (${cfg.workshop.maxFileBytes} bytes max)` };
-    }
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, text);
-    // the sandbox user has to be able to edit what he wrote
-    chownToBench(cfg, path.dirname(file));
-    chownToBench(cfg, file);
-    const rel = path.relative(root, file).split(path.sep).join('/');
-    const kind = isCreationKind(tool.kind) ? tool.kind : undefined;
-    if (kind) rememberKind(cfg.dataDir, rel, kind);
+    // He asks for things now; he does not write them. The build happens outside
+    // the model, from the idea queue, so this path is closed on purpose.
     return {
-      ok: true,
-      message: `wrote ${rel} (${bytes} bytes)${kind ? ` — ${kindLabel(kind)}` : ''}; it is standing where you are now.`,
-      url: `/world/${rel}`,
+      ok: false,
+      message: 'you do not write the file any more. Choose make and describe the idea; it will be built for you.',
     };
   }
 

@@ -64,6 +64,8 @@ export type Observation = {
   /** how much he has built so far, so the drive to build can be part of the prompt */
   made?: { total: number; lastDay: number | null };
   project?: { kind: string; text: string; place: string | null; setDay: number } | null;
+  /** ideas he has asked for that the builder has not finished yet */
+  ideas?: string[];
   lastFinished: { id: string; args: Record<string, unknown>; finishedAt: number } | null;
   routine: { actionsToday: Record<string, number>; visitedToday: Record<string, number>; recent: string[] };
   stats: { keptTotal: number; offeringCount: number };
