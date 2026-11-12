@@ -7,7 +7,7 @@ import { loadMemory, consolidate } from './memory.ts';
 import { loadVault } from './vault.ts';
 import { appendThought, readThoughts } from './thoughts.ts';
 import { runTool } from './tools.ts';
-import { collectResults } from '../bench.ts';
+import { collectResults, decide as decideBench } from '../bench.ts';
 import { evolvePersona, loadPersona, personaBrief, type PersonaSheet } from './persona.ts';
 import { appendLog, gc, hasDiary, readLog, writeDiaryEntry } from './diary.ts';
 import { browseSession } from './browse.ts';
@@ -24,7 +24,20 @@ let persona: { baseline: PersonaSheet; current: PersonaSheet } = loadPersona(cfg
 
 const BASE = `http://127.0.0.1:${cfg.port}`;
 const NAME = cfg.creature.name;
-const discord = startDiscord(cfg, log);
+const discord = startDiscord(cfg, log, {
+  // A bench button pressed in Discord. The callback has to be answered inside 3s,
+  // so this does the work and returns the line to show the person who pressed it.
+  onButton: async (customId, user) => {
+    const [, action, id] = customId.split(':');
+    const approve = action === 'approve';
+    const result = decideBench(cfg, id, approve);
+    if (!result.ok) return result.error ?? 'that did not work';
+    log(`discord: ${approve ? 'approved' : 'refused'} bench request ${id}${user ? ` by ${user}` : ''}`);
+    return approve
+      ? 'approved — running it now. The output will be posted here when it finishes.'
+      : 'refused. Nothing ran.';
+  },
+});
 
 let lastEventId = 0;
 let lastFinishedHandled = 0;
@@ -588,6 +601,11 @@ async function beat(): Promise<void> {
       tier: 'approved',
     });
     log(line);
+    if (discord.enabled) {
+      void discord.say(
+        `**bench · ${r.status}**\n\`${r.command.slice(0, 300)}\`\n\`\`\`\n${(r.output ?? '').slice(0, 1200)}\n\`\`\``,
+      );
+    }
   }
 
   // A browse action needs the model twice: once to choose a query and once to
@@ -711,6 +729,13 @@ async function beat(): Promise<void> {
       remember(outcome.message);
       if (outcome.ok && final.tool.name === 'ask') {
         awaitingAsk = String(final.tool.command ?? '').slice(0, 120) || 'a command';
+        if (discord.enabled && outcome.id) {
+          void discord.ask({
+            id: outcome.id,
+            command: String(final.tool.command ?? ''),
+            note: String(final.tool.note ?? ''),
+          });
+        }
       }
     }
   }

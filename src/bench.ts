@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Config } from './config.ts';
-import { notifyDiscord, panelUrl } from './notify.ts';
+import { envValue, notifyDiscord, panelUrl } from './notify.ts';
+
+/** With the bot in the channel it posts buttons; the webhook is the fallback. */
+function botHandlesAsks(): boolean {
+  return Boolean(envValue('DISCORD_BOT_TOKEN') && envValue('DISCORD_CHANNEL_ID'));
+}
 
 /**
  * The bench.
@@ -149,9 +154,10 @@ export function submit(
   save(cfg, data);
 
   // Tell the owner, if a webhook is configured. Fire and forget: a dead webhook
-  // must not stop the request from being queued.
+  // must not stop the request from being queued. The bot posts its own message
+  // with buttons, so the webhook would only be a duplicate when it is running.
   const link = panelUrl();
-  void notifyDiscord(
+  if (!botHandlesAsks()) void notifyDiscord(
     `**${cfg.creature.name} is asking to run a command**\n\`\`\`\n${cmd.slice(0, 400)}\n\`\`\`\n` +
       (req.note ? `he says: ${req.note}\n` : '') +
       (link ? `approve or refuse: ${link}` : 'approve or refuse in the admin panel, bench section'),

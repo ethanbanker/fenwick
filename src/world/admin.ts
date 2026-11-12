@@ -21,6 +21,8 @@ const EDITABLE = [
   'DISCORD_CHANNEL_ID',
   // where the bench asks get announced; a Discord webhook URL
   'DISCORD_WEBHOOK_URL',
+  // the only discord user allowed to press the approve buttons
+  'DISCORD_OWNER_ID',
 ] as const;
 
 type KeyName = (typeof EDITABLE)[number];

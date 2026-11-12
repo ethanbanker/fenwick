@@ -16,6 +16,11 @@ export type IncomingChat = {
   at: number;
 };
 
+export type DiscordHandlers = {
+  /** A bench button was pressed. Return the text to show the person who pressed it. */
+  onButton?: (customId: string, user: string) => Promise<string | null>;
+};
+
 export type DiscordBridge = {
   enabled: boolean;
   /** messages waiting to be answered, oldest first */
@@ -23,6 +28,8 @@ export type DiscordBridge = {
   /** take up to `max` waiting messages, oldest first */
   drain: (max?: number) => IncomingChat[];
   say: (text: string, to?: string) => Promise<boolean>;
+  /** Post a command with approve/refuse buttons. */
+  ask: (req: { id: string; command: string; note: string }) => Promise<boolean>;
   status: () => string;
 };
 
@@ -38,10 +45,15 @@ const off = (why: string): DiscordBridge => ({
   pending: () => [],
   drain: () => [],
   say: async () => false,
+  ask: async () => false,
   status: () => why,
 });
 
-export function startDiscord(cfg: Config, log: (msg: string) => void): DiscordBridge {
+export function startDiscord(
+  cfg: Config,
+  log: (msg: string) => void,
+  handlers: DiscordHandlers = {},
+): DiscordBridge {
   const token = cfg.discord.token;
   const channelId = cfg.discord.channelId;
   if (!token || !channelId) {
@@ -164,6 +176,10 @@ export function startDiscord(cfg: Config, log: (msg: string) => void): DiscordBr
       log(`discord: ${connection}`);
       return;
     }
+    if (pkt.t === 'INTERACTION_CREATE') {
+      void press(pkt.d);
+      return;
+    }
     if (pkt.t === 'MESSAGE_CREATE') {
       const msg = pkt.d;
       if (!msg || msg.author?.bot) return;
@@ -213,33 +229,95 @@ export function startDiscord(cfg: Config, log: (msg: string) => void): DiscordBr
     };
   }
 
+  async function post(payload: Record<string, unknown>, to?: string): Promise<boolean> {
+    const target = to || channelId;
+    const wait = 1100 - (Date.now() - lastSendAt);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    try {
+      const res = await fetch(`${API}/channels/${target}/messages`, {
+        method: 'POST',
+        headers: { authorization: `Bot ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ allowed_mentions: { parse: [] }, ...payload }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      lastSendAt = Date.now();
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        log(`discord: could not send (${res.status}) ${detail.slice(0, 180)}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      log(`discord: send failed (${(err as Error).message})`);
+      return false;
+    }
+  }
+
   async function say(text: string, to?: string): Promise<boolean> {
     const body = String(text ?? '').trim();
     if (!body) return false;
-    const target = to || channelId;
     const chunks = body.length <= 1900 ? [body] : body.match(/[\s\S]{1,1900}/g) ?? [];
     for (const chunk of chunks) {
-      const wait = 1100 - (Date.now() - lastSendAt);
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-      try {
-        const res = await fetch(`${API}/channels/${target}/messages`, {
-          method: 'POST',
-          headers: { authorization: `Bot ${token}`, 'content-type': 'application/json' },
-          body: JSON.stringify({ content: chunk, allowed_mentions: { parse: [] } }),
-          signal: AbortSignal.timeout(15_000),
-        });
-        lastSendAt = Date.now();
-        if (!res.ok) {
-          const detail = await res.text().catch(() => '');
-          log(`discord: could not send (${res.status}) ${detail.slice(0, 180)}`);
-          return false;
-        }
-      } catch (err) {
-        log(`discord: send failed (${(err as Error).message})`);
-        return false;
-      }
+      if (!(await post({ content: chunk }, to))) return false;
     }
     return true;
+  }
+
+  async function ask(req: { id: string; command: string; note: string }): Promise<boolean> {
+    const content =
+      `**${cfg.creature.name} is asking to run a command**\n\`\`\`\n${String(req.command ?? '').slice(0, 900)}\n\`\`\`` +
+      (req.note ? `\nhe says: ${req.note}` : '');
+    return post({
+      content,
+      components: [
+        {
+          type: 1,
+          components: [
+            { type: 2, style: 3, label: 'run it', custom_id: `bench:approve:${req.id}` },
+            { type: 2, style: 4, label: 'no', custom_id: `bench:deny:${req.id}` },
+          ],
+        },
+      ],
+    });
+  }
+
+  /** Answer a button press. Discord wants the callback within 3s, so it is sent first. */
+  async function press(it: any): Promise<void> {
+    const custom = String(it?.data?.custom_id ?? '');
+    const user = String(it?.member?.user?.id || it?.user?.id || '');
+    const ack = async (text: string): Promise<void> => {
+      try {
+        await fetch(`${API}/interactions/${it.id}/${it.token}/callback`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ type: 4, data: { content: text, flags: 64 } }),
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch {
+        /* the click happened; the message is a courtesy */
+      }
+    };
+
+    const match = /^bench:(approve|deny):([a-z0-9]{4,12})$/.exec(custom);
+    if (!match) {
+      await ack('that button is not one I understand.');
+      return;
+    }
+    const owner = cfg.discord.ownerId;
+    if (owner && user !== owner) {
+      await ack('only the owner can decide this one.');
+      return;
+    }
+    if (!handlers.onButton) {
+      await ack('nobody is able to decide that right now.');
+      return;
+    }
+    try {
+      const answer = await handlers.onButton(custom, user);
+      await ack(answer || 'done.');
+    } catch (err) {
+      await ack(`that did not work: ${(err as Error).message}`);
+    }
   }
 
   connect();
@@ -249,6 +327,7 @@ export function startDiscord(cfg: Config, log: (msg: string) => void): DiscordBr
     pending: () => queue.slice(),
     drain: (max = 4) => queue.splice(0, max),
     say,
+    ask,
     status: () => connection,
   };
 }

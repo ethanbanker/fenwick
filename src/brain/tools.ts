@@ -16,7 +16,7 @@ import { chownToBench, submit } from '../bench.ts';
  * is a decision for whoever owns the machine, not a default.
  */
 
-export type ToolOutcome = { ok: boolean; message: string; url?: string };
+export type ToolOutcome = { ok: boolean; message: string; url?: string; id?: string };
 
 const COMMANDS = new Set(['ls', 'cat', 'head', 'tail', 'wc', 'date', 'echo', 'mkdir']);
 
@@ -104,6 +104,7 @@ export function runTool(cfg: Config, vault: Vault, tool: ToolCall | undefined, d
     const asked = submit(cfg, String(tool.command ?? ''), String(tool.note ?? ''), day);
     return {
       ok: asked.ok,
+      id: asked.id,
       message: asked.ok
         ? `asked the owner to run "${String(tool.command ?? '').trim().slice(0, 100)}" — request #${asked.id} is waiting for approval. The output will come back to you next turn.`
         : `nothing sent — ${asked.reason}`,

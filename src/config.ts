@@ -77,6 +77,8 @@ export type Config = {
     channelId: string;
     /** Post each finished diary entry to that channel. */
     announceDiaries: boolean;
+    /** Discord user id allowed to press the bench buttons; empty allows anyone in the channel. */
+    ownerId: string;
   };
   browse: {
     enabled: boolean;
@@ -261,7 +263,7 @@ const DEFAULTS: Config = {
     // it a crystal in the 4-9 tile ring could sit there for days.
     sightRadiusTiles: 12,
   },
-  discord: { token: '', channelId: '', announceDiaries: true },
+  discord: { token: '', channelId: '', announceDiaries: true, ownerId: '' },
   browse: {
     enabled: true,
     allowSearch: true,
@@ -367,6 +369,7 @@ export function loadConfig(): Config {
 
   if (env.DISCORD_BOT_TOKEN) cfg.discord.token = env.DISCORD_BOT_TOKEN;
   if (env.DISCORD_CHANNEL_ID) cfg.discord.channelId = env.DISCORD_CHANNEL_ID;
+  if (env.DISCORD_OWNER_ID) cfg.discord.ownerId = env.DISCORD_OWNER_ID;
   if (env.DISCORD_ANNOUNCE_DIARIES === '0' || env.DISCORD_ANNOUNCE_DIARIES === 'false') {
     cfg.discord.announceDiaries = false;
   }
