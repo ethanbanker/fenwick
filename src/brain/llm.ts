@@ -121,6 +121,9 @@ export class Brain {
   private cfg: Config;
   private dayKey: string;
   private callsToday = 0;
+  // persisted with the day's call count: the panel must not reset these on a restart
+  private tokensIn = 0;
+  private tokensOut = 0;
   private lastCallAt = 0;
   private lastError: string | null = null;
   private queue: Promise<unknown> = Promise.resolve();
@@ -203,11 +206,7 @@ export class Brain {
         tokensOut: use?.tokensOut ?? 0,
       });
     }
-    const totals = { tokensIn: 0, tokensOut: 0 };
-    for (const use of this.usage.values()) {
-      totals.tokensIn += use.tokensIn;
-      totals.tokensOut += use.tokensOut;
-    }
+    const totals = { tokensIn: this.tokensIn, tokensOut: this.tokensOut };
     return {
       pid: process.pid,
       tokensIn: totals.tokensIn,
@@ -245,8 +244,17 @@ export class Brain {
 
   private loadBudget(): void {
     try {
-      const raw = JSON.parse(fs.readFileSync(this.budgetFile(), 'utf8')) as { day: string; calls: number };
-      if (raw.day === this.dayKey) this.callsToday = raw.calls ?? 0;
+      const raw = JSON.parse(fs.readFileSync(this.budgetFile(), 'utf8')) as {
+        day: string;
+        calls: number;
+        tokensIn?: number;
+        tokensOut?: number;
+      };
+      if (raw.day === this.dayKey) {
+        this.callsToday = raw.calls ?? 0;
+        this.tokensIn = raw.tokensIn ?? 0;
+        this.tokensOut = raw.tokensOut ?? 0;
+      }
     } catch {
       /* first run */
     }
@@ -255,7 +263,10 @@ export class Brain {
   private saveBudget(): void {
     try {
       fs.mkdirSync(`${this.cfg.dataDir}/brain`, { recursive: true });
-      fs.writeFileSync(this.budgetFile(), JSON.stringify({ day: this.dayKey, calls: this.callsToday }));
+      fs.writeFileSync(
+        this.budgetFile(),
+        JSON.stringify({ day: this.dayKey, calls: this.callsToday, tokensIn: this.tokensIn, tokensOut: this.tokensOut }),
+      );
     } catch {
       /* non-fatal */
     }
@@ -266,6 +277,8 @@ export class Brain {
     if (key !== this.dayKey) {
       this.dayKey = key;
       this.callsToday = 0;
+      this.tokensIn = 0;
+      this.tokensOut = 0;
       this.lastError = null;
       this.endpointCooling.clear();
       this.usage.clear();
@@ -391,6 +404,8 @@ export class Brain {
                 ? await this.callGemini(endpoint, modelName, call)
                 : await this.callOpenAi(endpoint, modelName, call);
             this.callsToday += 1;
+            this.tokensIn += answer.tokensIn;
+            this.tokensOut += answer.tokensOut;
             this.saveBudget();
             this.lastError = null;
             const good = this.usageFor(endpoint);
