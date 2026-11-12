@@ -38,6 +38,21 @@ export type Mark = {
   at: number;
 };
 
+/** Something he made in the workshop, standing in the town where he made it. */
+export type Creation = {
+  id: string;
+  /** path inside data/workshop */
+  file: string;
+  /** what it is called, from the file name */
+  name: string;
+  tile: Point;
+  day: number;
+  at: number;
+  /** the last time he stood in front of it */
+  lookedAt: number | null;
+};
+
+
 export type WorldEvent = {
   id: number;
   day: number;
@@ -87,6 +102,7 @@ export type WorldState = {
   creature: Creature;
   offerings: Offering[];
   marks: Mark[];
+  creations: Creation[];
   events: WorldEvent[];
   eventSeq: number;
   visitedToday: Record<string, number>;
@@ -126,6 +142,7 @@ export function createWorld(cfg: Config): { state: WorldState; town: Town } {
     },
     offerings: [],
     marks: [],
+    creations: [],
     events: [],
     eventSeq: 1,
     visitedToday: {},

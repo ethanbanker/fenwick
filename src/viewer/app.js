@@ -553,6 +553,52 @@
     bctx.fillRect(sx - 3, sy - 3, 4, 1);
   }
 
+  /** Something he made: a small board on legs, standing in the street. */
+  function drawCreation(ms) {
+    const c = project(ms.x + 0.5, ms.y + 0.5);
+    const sx = Math.round(c.sx);
+    const sy = Math.round(c.sy);
+    bctx.fillStyle = 'rgba(0,0,0,0.22)';
+    bctx.beginPath();
+    bctx.ellipse(sx, sy + 1, 6, 2.4, 0, 0, Math.PI * 2);
+    bctx.fill();
+    bctx.fillStyle = '#6b5b46';
+    bctx.fillRect(sx - 3, sy - 5, 1, 5);
+    bctx.fillRect(sx + 2, sy - 5, 1, 5);
+    bctx.fillStyle = '#e6d9bf';
+    bctx.fillRect(sx - 5, sy - 11, 10, 6);
+    bctx.fillStyle = '#c2ae8c';
+    bctx.fillRect(sx - 5, sy - 11, 10, 1);
+    bctx.fillStyle = 'rgba(74,63,48,0.8)';
+    bctx.fillRect(sx - 3, sy - 9, 6, 1);
+    bctx.fillRect(sx - 3, sy - 7, 4, 1);
+  }
+
+  /** What he calls the thing, over the top of the map. */
+  function drawCreationTags(list) {
+    const recent = list.slice(-8);
+    if (!recent.length) return;
+    bctx.save();
+    bctx.font = '5px ui-sans-serif, -apple-system, sans-serif';
+    bctx.textAlign = 'left';
+    bctx.textBaseline = 'middle';
+    for (const ms of recent) {
+      const c = project(ms.x + 0.5, ms.y + 0.5);
+      if (c.sx < -60 || c.sx > baseW + 60 || c.sy < -40 || c.sy > baseH + 40) continue;
+      const label = String(ms.name || 'something').slice(0, 18);
+      const w = Math.ceil(bctx.measureText(label).width) + 8;
+      const x = Math.round(c.sx - w / 2);
+      const y = Math.round(c.sy) - 20;
+      bctx.fillStyle = 'rgba(10,8,7,0.72)';
+      bctx.fillRect(x, y, w, 9);
+      bctx.fillStyle = 'rgba(230,217,191,0.55)';
+      bctx.fillRect(x, y, 1, 9);
+      bctx.fillStyle = '#e6d9bf';
+      bctx.fillText(label, x + 4, y + 5);
+    }
+    bctx.restore();
+  }
+
   /** Name tags for crystals nobody has collected yet, so whoever left one can
       find it again. Drawn over the weather and the vignette so they always read. */
   function drawCrystalTags(list, t) {
@@ -966,6 +1012,10 @@
       drawables.push({ d: mk.x + mk.y + 0.5, fn: () => drawMark(mk) });
     }
 
+    for (const made of snap ? snap.creations || [] : []) {
+      drawables.push({ d: made.x + made.y + 0.5, fn: () => drawCreation(made) });
+    }
+
     drawables.push({
       d: Math.floor(shown.x) + Math.floor(shown.y) + 0.75,
       fn: drawCat,
@@ -983,6 +1033,7 @@
     if (snap) {
       drawCrystalTags(snap.offerings || [], t);
       drawMarkTags(snap.marks || []);
+      drawCreationTags(snap.creations || []);
     }
 
     view.imageSmoothingEnabled = false;

@@ -205,6 +205,19 @@ export const ACTIONS: ActionSpec[] = [
     appetite: 'something is new and does not belong to him yet',
   },
   {
+    id: 'behold',
+    label: 'look at something he made',
+    places: [],
+    durationMinutes: [6, 14],
+    cooldownSeconds: 20,
+    pullFrom: [
+      { need: 'curiosity', weight: 0.7 },
+      { need: 'unease', weight: 0.15 },
+    ],
+    tags: ['creation', 'attention'],
+    appetite: 'it is still standing there, which is the strange part',
+  },
+  {
     id: 'leave_mark',
     label: 'leave a mark',
     places: [],
@@ -314,7 +327,8 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
   }
 
   for (const spec of ACTIONS) {
-    if (spec.id === 'go_to' || spec.id === 'inspect') continue;
+    // these need a target, and are offered below from what is actually out there
+    if (spec.id === 'go_to' || spec.id === 'inspect' || spec.id === 'behold') continue;
     if (spec.places.length && (!here || !spec.places.includes(here))) continue;
     if (spec.id === 'stargaze' && !isNight(state)) continue;
     if (spec.id === 'eat') {
@@ -368,12 +382,30 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
     });
   }
 
+  // His own work, still where he left it. Nothing in the world is as close to
+  // him as the thing he made an hour ago and has not looked at since.
+  for (const made of state.creations) {
+    const d = Math.hypot(made.tile.x + 0.5 - c.pos.x, made.tile.y + 0.5 - c.pos.y);
+    if (d > sight) continue;
+    const close = d <= reach;
+    out.push({
+      id: 'behold',
+      description: close
+        ? `look at "${made.name}", which he made`
+        : `walk over to "${made.name}", which he made`,
+      args: { creation: made.id },
+      pull: clamp((close ? 0.6 : 0.5) + needUrgency(state, 'curiosity', 0.35) * 0.35, 0, 1),
+      here: close,
+    });
+  }
+
   return out;
 }
 
 export function describeAction(town: Town, id: string, args: Record<string, unknown>): string {
   if (id === 'go_to') return `walk to ${placePhrase(placeName(town, String(args.place)))}`;
   if (id === 'inspect') return 'inspect a crystal';
+  if (id === 'behold') return 'look at something he made';
   return getSpec(id)?.label ?? id;
 }
 
@@ -462,6 +494,47 @@ export function startAction(ctx: ActionContext, id: string, args: Record<string,
     return { ok: true, action };
   }
 
+  if (id === 'behold') {
+    const made = state.creations.find((x) => x.id === String(args.creation));
+    if (!made) return { ok: false, error: 'that is not standing there any more' };
+    const d = Math.hypot(made.tile.x + 0.5 - c.pos.x, made.tile.y + 0.5 - c.pos.y);
+    const reachHere = cfg.offerings.senseRadiusTiles + 1.4;
+    if (d > reachHere) {
+      const path = findPath(c.pos, made.tile, (x, y) => {
+        const t = town.tiles[y * town.w + x];
+        return t !== T.building && t !== T.water && t !== T.tree;
+      }, town.w, town.h);
+      if (!path.length) return { ok: false, error: 'cannot find a way over to it' };
+      c.path = path;
+      const action = {
+        id,
+        label: `walking over to "${made.name}"`,
+        reason,
+        thought,
+        args,
+        startedAt: now,
+        endsAt: now + (path.length / c.speed) * 1000 + 400,
+        phase: 'moving' as const,
+      };
+      c.action = action;
+      addEvent(state, 'creation', `sets off to where he left "${made.name}"`, 0.25);
+      return { ok: true, action };
+    }
+    const action = {
+      id,
+      label: `looking at "${made.name}"`,
+      reason,
+      thought,
+      args,
+      startedAt: now,
+      endsAt: now + msForWorldMinutes(cfg, 8),
+      phase: 'doing' as const,
+    };
+    c.action = action;
+    addEvent(state, 'creation', `stands in front of "${made.name}" and looks at it`, 0.4);
+    return { ok: true, action };
+  }
+
   // place-bound actions
   if (spec.places.length && (!here || !spec.places.includes(here))) {
     return { ok: false, error: `you cannot ${spec.label} here` };
@@ -546,6 +619,21 @@ export function completeAction(ctx: ActionContext): { id: string; args: Record<s
   if (state.actionHistory.length > 40) state.actionHistory.shift();
 
   switch (id) {
+    case 'behold': {
+      const made = state.creations.find((x) => x.id === String(action.args.creation));
+      if (made) {
+        made.lookedAt = now;
+        applyMoodDelta(state, { valence: 0.07 });
+        applyNeedDelta(state, { curiosity: -0.12 });
+        addEvent(
+          state,
+          'creation',
+          `has a long look at "${made.name}", which he made on day ${made.day}`, 
+          0.5,
+        );
+      }
+      break;
+    }
     case 'leave_mark': {
       // whatever he scratched goes into the town, and the town keeps it
       const text =

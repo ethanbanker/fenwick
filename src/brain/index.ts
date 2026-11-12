@@ -368,6 +368,14 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
           .map((m) => `- day ${m.day}, ${m.distance} tiles off: "${m.text}"`)
           .join('\n')}`
       : '',
+    obs.creations?.length
+      ? `THINGS YOU MADE, STILL STANDING IN TOWN WHERE YOU LEFT THEM:\n${obs.creations
+          .map(
+            (made) =>
+              `- "${made.name}" (${made.file}), made day ${made.day}, ${made.distance} tiles off${made.preview ? `: ${made.preview}` : ''}`,
+          )
+          .join('\n')}`
+      : '',
     '',
     'WHAT YOU CAN DO RIGHT NOW — pick exactly one, by its exact action id:',
     optionsBlock(obs, bans, placeBans),
@@ -388,7 +396,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     showTools
       ? 'You may attach one optional "tool" to that same JSON, if you actually want it right now:\n' +
         '  {"tool":{"name":"keep","text":"one sentence worth keeping forever"}} — the box that never fades.\n' +
-        '  {"tool":{"name":"write","path":"garden.html","text":"the whole file"}} — make something in your workshop, served at /world/garden.html.\n' +
+        '  {"tool":{"name":"write","path":"garden.html","text":"the whole file"}} — make something; it will be standing in the town where you are.\n' +
         '  {"tool":{"name":"read","path":"garden.html"}}\n' +
         '  {"tool":{"name":"run","command":"ls"}} — only ls, cat, head, tail, wc, date, echo, mkdir, node --check <file>, inside the workshop.\n' +
         '  {"tool":{"name":"ask","command":"node build.js","note":"why"}} — anything else; waits for the owner to approve, output comes back next turn.\n' +
