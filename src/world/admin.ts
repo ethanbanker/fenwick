@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { dataPath, ROOT, type Config } from '../config.ts';
+import { benchStatus } from '../bench.ts';
 
 /**
  * The admin panel's data side: which keys are set, what the brain last reported,
@@ -92,6 +93,7 @@ export type AdminStatus = {
     dataDir: string;
   };
   envFile: string;
+  bench: ReturnType<typeof benchStatus>;
 };
 
 export function adminStatus(cfg: Config): AdminStatus {
@@ -121,6 +123,7 @@ export function adminStatus(cfg: Config): AdminStatus {
       dataDir: cfg.dataDir,
     },
     envFile: envFile(),
+    bench: benchStatus(cfg),
   };
 }
 

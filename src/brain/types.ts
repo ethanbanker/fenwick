@@ -57,10 +57,11 @@ export type Observation = {
 };
 
 export type ToolCall = {
-  name: 'keep' | 'write' | 'read' | 'run';
+  name: 'keep' | 'write' | 'read' | 'run' | 'ask';
   text?: string;
   path?: string;
   command?: string;
+  note?: string;
 };
 
 export type ModelDecision = {

@@ -20,6 +20,7 @@ import { availableActions, completeAction, placeOf, startAction, type ActionCont
 import { renderPage, type PageKind } from './pages.ts';
 import { adminAuthorized, adminStatus, adminToken, updateKeys } from './admin.ts';
 import { readThoughts } from '../brain/thoughts.ts';
+import { decide as decideBench } from '../bench.ts';
 
 const cfg = loadConfig();
 const stateFile = dataPath(cfg, 'world-state.json');
@@ -571,6 +572,12 @@ const server = http.createServer(async (req, res) => {
       if (p === '/api/admin/keys' && req.method === 'POST') {
         const body = await readJson<{ updates?: Record<string, unknown> }>(req);
         const result = updateKeys(cfg, body.updates ?? {});
+        sendJson(res, result.ok ? 200 : 400, result);
+        return;
+      }
+      if (p === '/api/admin/bench' && req.method === 'POST') {
+        const body = await readJson<{ id?: string; decision?: string }>(req);
+        const result = decideBench(cfg, String(body.id ?? ''), body.decision === 'approve');
         sendJson(res, result.ok ? 200 : 400, result);
         return;
       }

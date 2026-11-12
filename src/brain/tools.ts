@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import type { Config } from '../config.ts';
 import type { ToolCall } from './types.ts';
 import type { Vault } from './vault.ts';
+import { chownToBench, submit } from '../bench.ts';
 
 /**
  * What he can do with his hands.
@@ -82,6 +83,9 @@ export function runTool(cfg: Config, vault: Vault, tool: ToolCall | undefined, d
     }
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, text);
+    // the sandbox user has to be able to edit what he wrote
+    chownToBench(cfg, path.dirname(file));
+    chownToBench(cfg, file);
     const rel = path.relative(root, file).split(path.sep).join('/');
     return { ok: true, message: `wrote ${rel} (${bytes} bytes)`, url: `/world/${rel}` };
   }
@@ -94,6 +98,16 @@ export function runTool(cfg: Config, vault: Vault, tool: ToolCall | undefined, d
     const text = fs.readFileSync(file, 'utf8');
     const clipped = text.length > 4000 ? `${text.slice(0, 4000)}\n… (cut)` : text;
     return { ok: true, message: clipped || '(empty file)' };
+  }
+
+  if (tool.name === 'ask') {
+    const asked = submit(cfg, String(tool.command ?? ''), String(tool.note ?? ''), day);
+    return {
+      ok: asked.ok,
+      message: asked.ok
+        ? `asked the owner to run "${String(tool.command ?? '').trim().slice(0, 100)}" — request #${asked.id} is waiting for approval. The output will come back to you next turn.`
+        : `nothing sent — ${asked.reason}`,
+    };
   }
 
   if (tool.name === 'run') {

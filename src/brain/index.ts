@@ -7,6 +7,7 @@ import { loadMemory, consolidate } from './memory.ts';
 import { loadVault } from './vault.ts';
 import { appendThought } from './thoughts.ts';
 import { runTool } from './tools.ts';
+import { collectResults } from '../bench.ts';
 import { evolvePersona, loadPersona, personaBrief, type PersonaSheet } from './persona.ts';
 import { appendLog, gc, hasDiary, readLog, writeDiaryEntry } from './diary.ts';
 import { browseSession } from './browse.ts';
@@ -362,6 +363,7 @@ async function decide(obs: Observation): Promise<{ decision: Decision; tier: str
     '  {"tool":{"name":"write","path":"garden.html","text":"the whole file"}} — make something in your workshop, served at /world/garden.html.',
     '  {"tool":{"name":"read","path":"garden.html"}}',
     '  {"tool":{"name":"run","command":"ls"}} — only ls, cat, head, tail, wc, date, echo, mkdir, node --check <file>, inside the workshop.',
+    '  {"tool":{"name":"ask","command":"node build.js","note":"why you want it"}} — anything else. It waits for the owner to approve it, runs safely, and the output comes back next turn. This is the only way to run a real command.',
     'One tool at most. For leave_mark, put the words you scratch into args: {"action":"leave_mark","args":{"text":"..."}}.',
   ]
     .filter((line) => line !== '')
@@ -549,6 +551,25 @@ async function beat(): Promise<void> {
   if (!obs) {
     heartbeat = Math.max(heartbeat, 5000);
     return;
+  }
+
+  // Anything the owner approved and ran for him comes back before he decides
+  // anything else, so the output is in his head when he chooses.
+  for (const r of collectResults(cfg)) {
+    const verdict = r.status === 'done' ? 'ran' : r.status === 'denied' ? 'was refused by the owner' : 'failed';
+    const line = `bench: ${r.command} ${verdict}${r.output ? ` → ${oneLine(r.output, 240)}` : ''}`;
+    remember(line);
+    appendLog(cfg, obs.day, `[${obs.time}] ${oneLine(line, 240)}`);
+    appendThought(cfg, {
+      at: Date.now(),
+      day: obs.day,
+      time: obs.time,
+      action: 'bench',
+      thought: oneLine(r.output ?? verdict, 200),
+      reason: r.command,
+      tier: 'approved',
+    });
+    log(line);
   }
 
   // A browse action needs the model twice: once to choose a query and once to

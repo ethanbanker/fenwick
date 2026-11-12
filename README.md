@@ -460,10 +460,26 @@ deliberately not a shell:
   read the admin token out of this site's storage.
 - `workshop.enabled: false` closes it.
 
-There is no general command line, and `freebuff` is not installed on the container.
-An unrestricted shell would be arbitrary code running as the same user that holds
-the API keys; if you want that, it belongs behind a separate unprivileged user with
-no network, not a config flag.
+**The bench** — the wider command line, gated on you. He cannot run anything on his
+own; he can only `ask`, which queues a request in `data/bench.json`. Those appear in
+the **bench** section of `/admin`, with his reason, and nothing runs until you press
+*run it*. An approved command then runs:
+
+- as an unprivileged account (`bench.user`, default `builder`), never as root;
+- in a fresh **network namespace**, so it has no network at all;
+- with `data/workshop` as home and working directory, and an environment that holds
+  no API keys;
+- with a 20 s timeout and capped output, which comes back to him on his next turn
+  and lands in `/thoughts`.
+
+Create the account once with `sudo bash install/bench-sandbox.sh` (idempotent; it
+writes the user directly into `/etc/passwd`, since containers often have no
+`useradd`). It prints whether the network namespace is available. Without the
+account the bench refuses every approval rather than falling back to root.
+
+`freebuff` is not installed on the container. If you want it, install it into the
+workshop as that same `builder` account — then it inherits exactly these limits:
+no network, no `.env`, no root, and you still approve every run.
 
 ## Admin
 

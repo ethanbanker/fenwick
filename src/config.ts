@@ -92,6 +92,14 @@ export type Config = {
     maxOutputBytes: number;
     timeoutMs: number;
   };
+  /** Commands he has to ask for, run sandboxed after approval. */
+  bench: {
+    enabled: boolean;
+    /** unprivileged account the approved command runs as */
+    user: string;
+    timeoutMs: number;
+    maxOutputBytes: number;
+  };
 };
 
 function deepMerge<T>(base: T, override: unknown): T {
@@ -262,6 +270,7 @@ const DEFAULTS: Config = {
     maxBytes: 400_000,
   },
   workshop: { enabled: true, maxFileBytes: 48_000, maxOutputBytes: 4000, timeoutMs: 8000 },
+  bench: { enabled: true, user: 'builder', timeoutMs: 20_000, maxOutputBytes: 6000 },
 };
 
 export const ROOT = path.resolve(process.cwd());

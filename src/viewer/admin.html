@@ -54,6 +54,11 @@
   ul.events time{color:var(--faint);font-variant-numeric:tabular-nums;flex:none;font-size:11px;padding-top:1px}
   ul.events .who{color:var(--ink);flex:none;min-width:86px}
   ul.events .msg{color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bench{display:flex;flex-direction:column;gap:10px}
+  .bench .req{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:rgba(12,10,9,.4)}
+  .bench .cmd{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink);word-break:break-word}
+  .bench .why{font-size:11.5px;color:var(--faint);margin-top:4px}
+  .bench .acts{display:flex;gap:8px;margin-top:9px}
   .keys{display:flex;flex-direction:column;gap:11px}
   .keyrow{display:grid;grid-template-columns:190px 1fr auto;gap:10px;align-items:center}
   .keyrow .name{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--ink)}
@@ -129,6 +134,14 @@
     <ul class="events" id="events"><li><time>—</time><span class="msg">nothing yet</span></li></ul>
     <p class="hint" style="margin:10px 0 0">A stage that answers 429 rests for the window the provider
       asks for, then the chain scans to the next one. Refused requests do not spend the daily budget.</p>
+  </section>
+
+  <section class="card">
+    <h2>bench — commands waiting for you</h2>
+    <div id="bench-pending" class="bench"></div>
+    <p class="hint" id="bench-note" style="margin:12px 0 0"></p>
+    <h2 style="margin-top:20px">recently run</h2>
+    <ul class="events" id="bench-recent"><li><time>—</time><span class="msg">nothing run yet</span></li></ul>
   </section>
 
   <section class="card">
@@ -264,6 +277,24 @@
       keysBox.innerHTML = keyRows;
       keysBox.dataset.ready = '1';
     }
+
+    const bench = data.bench || { pending: [], recent: [], enabled: false };
+    $('bench-pending').innerHTML = bench.pending.length ? bench.pending.map((r) =>
+      '<div class="req"><div class="cmd">' + esc(r.command) + '</div>' +
+      (r.note ? '<div class="why">"' + esc(r.note) + '"</div>' : '') +
+      '<div class="why">asked ' + ago(r.at) + ' \u00b7 day ' + esc(r.day) + '</div>' +
+      '<div class="acts"><button data-bench="' + esc(r.id) + '" data-decision="approve">run it</button>' +
+      '<button class="ghost" data-bench="' + esc(r.id) + '" data-decision="deny">no</button></div></div>'
+    ).join('') : '<p class="hint">Nothing waiting. When he wants to run something real, it appears here.</p>';
+    $('bench-note').textContent = bench.enabled
+      ? 'Runs as ' + bench.user + ' \u00b7 ' + (bench.userExists ? 'account exists' : 'ACCOUNT MISSING — run install/bench-sandbox.sh') +
+        ' \u00b7 ' + (bench.isolated ? 'network namespace: no network' : 'no network namespace available')
+      : 'The bench is closed (bench.enabled = false).';
+    $('bench-recent').innerHTML = bench.recent.length ? bench.recent.map((r) =>
+      '<li><time>' + (r.finishedAt ? clock(r.finishedAt) : '\u2014') + '</time>' +
+      '<span class="who">' + esc(r.status) + '</span>' +
+      '<span class="msg" title="' + esc(r.output) + '">' + esc(r.command) + ' \u2192 ' + esc((r.output || '').slice(0, 80)) + '</span></li>'
+    ).join('') : '<li><time>\u2014</time><span class="msg">nothing run yet</span></li>';
   }
 
   async function saveKey(name) {
@@ -291,6 +322,25 @@
   $('keys').addEventListener('click', (e) => {
     const name = e.target.getAttribute && e.target.getAttribute('data-save');
     if (name) saveKey(name);
+  });
+
+  $('bench-pending').addEventListener('click', async (e) => {
+    const id = e.target.getAttribute && e.target.getAttribute('data-bench');
+    if (!id) return;
+    const decision = e.target.getAttribute('data-decision');
+    try {
+      const res = await fetch('/api/admin/bench', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ id, decision }),
+      });
+      if (res.status === 401) { token = ''; localStorage.removeItem(TOKEN_KEY); gate(true); return; }
+      const data = await res.json();
+      toast(data.ok ? (decision === 'approve' ? 'running it' : 'refused') : (data.error || 'that did not work'));
+      load();
+    } catch (err) {
+      toast('request failed: ' + err.message);
+    }
   });
 
   async function load() {
