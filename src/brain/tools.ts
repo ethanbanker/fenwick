@@ -5,6 +5,7 @@ import type { Config } from '../config.ts';
 import type { ToolCall } from './types.ts';
 import type { Vault } from './vault.ts';
 import { chownToBench, submit } from '../bench.ts';
+import { isCreationKind, kindLabel, rememberKind } from '../util/creation-kinds.ts';
 
 /**
  * What he can do with his hands.
@@ -87,7 +88,13 @@ export function runTool(cfg: Config, vault: Vault, tool: ToolCall | undefined, d
     chownToBench(cfg, path.dirname(file));
     chownToBench(cfg, file);
     const rel = path.relative(root, file).split(path.sep).join('/');
-    return { ok: true, message: `wrote ${rel} (${bytes} bytes)`, url: `/world/${rel}` };
+    const kind = isCreationKind(tool.kind) ? tool.kind : undefined;
+    if (kind) rememberKind(cfg.dataDir, rel, kind);
+    return {
+      ok: true,
+      message: `wrote ${rel} (${bytes} bytes)${kind ? ` — ${kindLabel(kind)}` : ''}; it is standing where you are now.`,
+      url: `/world/${rel}`,
+    };
   }
 
   if (tool.name === 'read') {

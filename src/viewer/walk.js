@@ -816,6 +816,7 @@ import * as THREE from '/vendor/three.module.min.js';
   const lampGlows = [];
   const lampBulbs = [];
   const crystalMeshes = new Map();
+  const creationMeshes = new Map();
   const lampLights = [];
   const smokePuffs = [];
   const smokeAnchors = [];
@@ -2450,6 +2451,7 @@ import * as THREE from '/vendor/three.module.min.js';
       mochiGroup.rotation.y = mochi.yaw;
     }
     syncOfferings(s.offerings || []);
+    syncCreations(s.creations || []);
 
     $('day').textContent = String(s.day);
     $('time').textContent = s.time || '—';
@@ -2568,6 +2570,131 @@ import * as THREE from '/vendor/three.module.min.js';
       entry.mesh.geometry.dispose();
       entry.mesh.material.dispose();
       crystalMeshes.delete(id);
+    }
+  }
+
+  // ---------------------------------------------------------------- his things
+
+  /** Whatever he made, built into the street as the kind of thing it is. */
+  function buildCreationMesh(made) {
+    const g = new THREE.Group();
+    const kind = made.kind || 'ornament';
+    let glow = null;
+
+    if (kind === 'light') {
+      const metal = mat('#2b2f36', 0.7, 0.35);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 2.1, 6), metal);
+      post.position.y = 1.05;
+      post.castShadow = true;
+      g.add(post);
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(0.26, 0.3, 0.26),
+        new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffc978, emissiveIntensity: 0.85, roughness: 0.4 }),
+      );
+      head.position.y = 2.2;
+      g.add(head);
+      glow = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: glowTex, color: 0xffc978, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false }),
+      );
+      glow.scale.setScalar(2.8);
+      glow.position.y = 2.2;
+      g.add(glow);
+    } else if (kind === 'seat') {
+      box(1.0, 0.08, 0.42, 0x5c422d, 0, 0.42, 0, g);
+      box(0.9, 0.4, 0.08, 0x4a3624, 0, 0.62, -0.2, g);
+      box(0.08, 0.42, 0.36, 0x2b2f36, -0.42, 0.21, 0, g);
+      box(0.08, 0.42, 0.36, 0x2b2f36, 0.42, 0.21, 0, g);
+    } else if (kind === 'shelter') {
+      box(1.2, 0.9, 1.2, 0x4a4034, 0, 0.45, 0, g);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.05, 0.6, 4), mat('#3a332a', 0.9));
+      roof.position.y = 1.2;
+      roof.rotation.y = Math.PI / 4;
+      roof.castShadow = true;
+      g.add(roof);
+      const door = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.03), mat('#14100c', 1));
+      door.position.set(0, 0.36, 0.61);
+      g.add(door);
+    } else if (kind === 'sign') {
+      box(0.07, 0.9, 0.07, 0x4a3624, 0, 0.45, 0, g);
+      box(0.9, 0.5, 0.06, 0xe6d9bf, 0, 1.0, 0, g);
+      box(0.6, 0.04, 0.012, 0x4a3f30, 0, 1.06, 0.04, g);
+    } else if (kind === 'garden') {
+      const stage = made.stage || 0;
+      box(1.3, 0.12, 0.9, 0x3f3a2a, 0, 0.06, 0, g);
+      const green = mat('#4f7a38', 0.95);
+      const count = stage <= 0 ? 3 : stage >= 2 ? 7 : 5;
+      for (let i = 0; i < count; i++) {
+        const h = (stage <= 0 ? 0.14 : stage >= 2 ? 0.55 : 0.34) + (i % 3) * 0.05;
+        const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.08, h, 5), green);
+        leaf.position.set(-0.5 + (i % 4) * 0.32, 0.12 + h / 2, -0.25 + Math.floor(i / 4) * 0.32);
+        g.add(leaf);
+      }
+      if (stage >= 2) {
+        const berry = new THREE.Mesh(
+          new THREE.SphereGeometry(0.05, 6, 4),
+          new THREE.MeshStandardMaterial({ color: 0xd4553f, roughness: 0.7 }),
+        );
+        berry.position.set(0.2, 0.62, 0.1);
+        g.add(berry);
+      }
+    } else {
+      box(0.7, 0.5, 0.06, 0xe6d9bf, 0, 0.75, 0, g);
+      box(0.06, 0.75, 0.06, 0x6b5b46, -0.24, 0.38, 0, g);
+      box(0.06, 0.75, 0.06, 0x6b5b46, 0.24, 0.38, 0, g);
+    }
+
+    g.position.set(made.x + 0.5, 0, made.y + 0.5);
+    if ((made.condition ?? 1) <= 0) {
+      // it came apart where it stood
+      g.rotation.z = 1.25;
+      g.rotation.y = 0.4;
+      g.position.y = -0.18;
+      g.traverse((o) => {
+        if (!o.material) return;
+        o.material = o.material.clone();
+        if (o.material.color) o.material.color.multiplyScalar(0.55);
+        if ('emissiveIntensity' in o.material) o.material.emissiveIntensity = 0;
+        if (o.material.opacity !== undefined && o.material.transparent) o.material.opacity *= 0.3;
+      });
+      glow = null;
+    }
+    scene.add(g);
+    return { group: g, glow, kind };
+  }
+
+  function syncCreations(list) {
+    const seen = new Set();
+    for (const made of list) {
+      if (!made || typeof made.x !== 'number') continue;
+      seen.add(made.id);
+      const kind = made.kind || 'ornament';
+      const existing = creationMeshes.get(made.id);
+      if (existing && existing.kind === kind) continue;
+      if (existing) {
+        scene.remove(existing.group);
+        existing.group.traverse((o) => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) o.material.dispose();
+        });
+        creationMeshes.delete(made.id);
+      }
+      creationMeshes.set(made.id, buildCreationMesh(made));
+    }
+    for (const [id, entry] of creationMeshes) {
+      if (seen.has(id)) continue;
+      scene.remove(entry.group);
+      entry.group.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+      creationMeshes.delete(id);
+    }
+  }
+
+  function updateCreations(now) {
+    for (const entry of creationMeshes.values()) {
+      if (!entry.glow) continue;
+      entry.glow.material.opacity = 0.1 + realSky.dark * 0.5 + Math.sin(now / 900 + entry.group.position.x) * 0.03;
     }
   }
 
@@ -2897,6 +3024,7 @@ import * as THREE from '/vendor/three.module.min.js';
       updatePlayer(dt);
       updateMochi(dt);
       updateOfferings(now);
+      updateCreations(now);
       updateDuck(now);
       updateSmoke(now);
       updateRain(dt);

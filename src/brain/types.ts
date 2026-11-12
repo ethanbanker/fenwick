@@ -51,7 +51,16 @@ export type Observation = {
     imageMime: string | null;
   }>;
   marks: Array<{ text: string; day: number; distance: number }>;
-  creations: Array<{ name: string; file: string; day: number; distance: number; preview: string }>;
+  creations: Array<{
+    name: string;
+    file: string;
+    kind: string;
+    day: number;
+    distance: number;
+    condition: string;
+    stage: number;
+    preview: string;
+  }>;
   lastFinished: { id: string; args: Record<string, unknown>; finishedAt: number } | null;
   routine: { actionsToday: Record<string, number>; visitedToday: Record<string, number>; recent: string[] };
   stats: { keptTotal: number; offeringCount: number };
@@ -63,6 +72,8 @@ export type ToolCall = {
   path?: string;
   command?: string;
   note?: string;
+  /** what the thing he is writing is for: lamp, shelter, seat, sign, garden, ornament */
+  kind?: string;
 };
 
 export type ModelDecision = {

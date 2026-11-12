@@ -2,7 +2,9 @@ import type { Config } from '../config.ts';
 import type { Point } from '../util/geo.ts';
 import { findPath } from '../util/geo.ts';
 import { clamp } from '../util/text.ts';
-import { addEvent, isNight, msForWorldMinutes, type WorldState } from './state.ts';
+import { addEvent, isNight, msForWorldMinutes, type Creation, type WorldState } from './state.ts';
+import { creationPreview, creationStage } from './creations.ts';
+import type { CreationKind } from '../util/creation-kinds.ts';
 import type { Town } from './map.ts';
 import { applyMoodDelta, applyNeedDelta, needUrgency } from './needs.ts';
 import { T } from './map.ts';
@@ -218,6 +220,33 @@ export const ACTIONS: ActionSpec[] = [
     appetite: 'it is still standing there, which is the strange part',
   },
   {
+    id: 'use',
+    label: 'use something he made',
+    places: [],
+    durationMinutes: [6, 40],
+    cooldownSeconds: 0,
+    pullFrom: [
+      { need: 'unease', weight: 0.3 },
+      { need: 'fatigue', weight: 0.2 },
+      { need: 'curiosity', weight: 0.2 },
+    ],
+    tags: ['creation', 'comfort'],
+    appetite: 'he made it for a reason, presumably',
+  },
+  {
+    id: 'mend',
+    label: 'mend something he made',
+    places: [],
+    durationMinutes: [20, 35],
+    cooldownSeconds: 45,
+    pullFrom: [
+      { need: 'unease', weight: 0.45 },
+      { need: 'curiosity', weight: 0.15 },
+    ],
+    tags: ['creation', 'care'],
+    appetite: 'it is coming apart, and that bothers him more than he expected',
+  },
+  {
     id: 'leave_mark',
     label: 'leave a mark',
     places: [],
@@ -285,6 +314,36 @@ export function placePhrase(name: string): string {
   return /^the\s/i.test(lowered) ? lowered : `the ${lowered}`;
 }
 
+/** How long it takes him to actually use each kind of thing he made. */
+const USE_MINUTES: Record<CreationKind, number> = {
+  light: 8,
+  shelter: 25,
+  seat: 40,
+  sign: 7,
+  garden: 12,
+  ornament: 6,
+};
+
+/** What using it would be called, in his terms. */
+function usePhrase(state: WorldState, made: Creation): string {
+  switch (made.kind) {
+    case 'light':
+      return `stand in the light of "${made.name}"`;
+    case 'shelter':
+      return `sit inside "${made.name}"`;
+    case 'seat':
+      return `sit on "${made.name}"`;
+    case 'sign':
+      return `read "${made.name}"`;
+    case 'garden':
+      return creationStage(state, made) >= 2
+        ? `pick from "${made.name}"`
+        : `check on "${made.name}", which he planted`;
+    default:
+      return `look at "${made.name}"`;
+  }
+}
+
 function tileOf(town: Town, placeId: string): Point {
   const p = town.places.find((x) => x.id === placeId);
   if (!p) return town.spawn;
@@ -328,7 +387,14 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
 
   for (const spec of ACTIONS) {
     // these need a target, and are offered below from what is actually out there
-    if (spec.id === 'go_to' || spec.id === 'inspect' || spec.id === 'behold') continue;
+    if (
+      spec.id === 'go_to' ||
+      spec.id === 'inspect' ||
+      spec.id === 'behold' ||
+      spec.id === 'use' ||
+      spec.id === 'mend'
+    )
+      continue;
     if (spec.places.length && (!here || !spec.places.includes(here))) continue;
     if (spec.id === 'stargaze' && !isNight(state)) continue;
     if (spec.id === 'eat') {
@@ -383,10 +449,14 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
   }
 
   // His own work, still where he left it. Nothing in the world is as close to
-  // him as the thing he made an hour ago and has not looked at since.
-  for (const made of state.creations) {
-    const d = Math.hypot(made.tile.x + 0.5 - c.pos.x, made.tile.y + 0.5 - c.pos.y);
-    if (d > sight) continue;
+  // him as the thing he made an hour ago and has not looked at since — and now
+  // it is not only something to look at: it is a place to sit, a light, a roof.
+  const nearbyCreations = state.creations
+    .map((made) => ({ made, d: Math.hypot(made.tile.x + 0.5 - c.pos.x, made.tile.y + 0.5 - c.pos.y) }))
+    .filter((entry) => entry.d <= sight)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 6);
+  for (const { made, d } of nearbyCreations) {
     const close = d <= reach;
     out.push({
       id: 'behold',
@@ -394,9 +464,43 @@ export function availableActions(ctx: ActionContext): AvailableAction[] {
         ? `look at "${made.name}", which he made`
         : `walk over to "${made.name}", which he made`,
       args: { creation: made.id },
-      pull: clamp((close ? 0.6 : 0.5) + needUrgency(state, 'curiosity', 0.35) * 0.35, 0, 1),
+      pull: clamp((close ? 0.5 : 0.45) + needUrgency(state, 'curiosity', 0.35) * 0.35, 0, 1),
       here: close,
     });
+    if (made.condition > 0.12) {
+      const phrase = usePhrase(state, made);
+      out.push({
+        id: 'use',
+        description: close ? phrase : `walk over and ${phrase}`,
+        args: { creation: made.id },
+        pull: clamp(
+          (close ? 0.52 : 0.45) +
+            (made.kind === 'seat' || made.kind === 'shelter' ? needUrgency(state, 'fatigue', 0.4) * 0.3 : 0) +
+            needUrgency(state, 'unease', 0.4) * 0.25,
+          0,
+          1,
+        ),
+        here: close,
+      });
+    }
+    if (made.condition < 0.55) {
+      out.push({
+        id: 'mend',
+        description: close ? `mend "${made.name}"` : `go and mend "${made.name}"`,
+        args: { creation: made.id },
+        pull: clamp(0.5 + (1 - made.condition) * 0.4 + needUrgency(state, 'unease', 0.3) * 0.2, 0, 1),
+        here: close,
+      });
+    }
+    if (made.kind === 'shelter' && made.condition > 0.3 && close && c.needs.fatigue > 0.45) {
+      out.push({
+        id: 'sleep',
+        description: `sleep in "${made.name}", which he built`,
+        args: { creation: made.id },
+        pull: clamp(0.55 + needUrgency(state, 'fatigue', 0.4) * 0.4, 0, 1),
+        here: true,
+      });
+    }
   }
 
   return out;
@@ -406,6 +510,8 @@ export function describeAction(town: Town, id: string, args: Record<string, unkn
   if (id === 'go_to') return `walk to ${placePhrase(placeName(town, String(args.place)))}`;
   if (id === 'inspect') return 'inspect a crystal';
   if (id === 'behold') return 'look at something he made';
+  if (id === 'use') return 'use something he made';
+  if (id === 'mend') return 'mend something he made';
   return getSpec(id)?.label ?? id;
 }
 
@@ -494,6 +600,56 @@ export function startAction(ctx: ActionContext, id: string, args: Record<string,
     return { ok: true, action };
   }
 
+  if (id === 'use' || id === 'mend') {
+    const made = state.creations.find((x) => x.id === String(args.creation));
+    if (!made) return { ok: false, error: 'that is not standing there any more' };
+    const reachHere = cfg.offerings.senseRadiusTiles + 1.4;
+    const d = Math.hypot(made.tile.x + 0.5 - c.pos.x, made.tile.y + 0.5 - c.pos.y);
+    if (d > reachHere) {
+      const path = findPath(c.pos, made.tile, (x, y) => {
+        const t = town.tiles[y * town.w + x];
+        return t !== T.building && t !== T.water && t !== T.tree;
+      }, town.w, town.h);
+      if (!path.length) return { ok: false, error: 'cannot find a way over to it' };
+      c.path = path;
+      const action = {
+        id,
+        label: `walking over to "${made.name}"`,
+        reason,
+        thought,
+        args,
+        startedAt: now,
+        endsAt: now + (path.length / c.speed) * 1000 + 400,
+        phase: 'moving' as const,
+      };
+      c.action = action;
+      addEvent(state, 'creation', `sets off to "${made.name}"`, 0.2);
+      return { ok: true, action };
+    }
+    if (id === 'mend' && made.condition >= 0.999) {
+      return { ok: false, error: `"${made.name}" does not need mending yet` };
+    }
+    const minutes = id === 'mend' ? 25 : USE_MINUTES[made.kind] ?? 10;
+    const action = {
+      id,
+      label: id === 'mend' ? `mending "${made.name}"` : usePhrase(state, made),
+      reason,
+      thought,
+      args,
+      startedAt: now,
+      endsAt: now + msForWorldMinutes(cfg, minutes),
+      phase: 'doing' as const,
+    };
+    c.action = action;
+    addEvent(
+      state,
+      'creation',
+      id === 'mend' ? `starts mending "${made.name}"` : `uses "${made.name}" for what it is`,
+      0.3,
+    );
+    return { ok: true, action };
+  }
+
   if (id === 'behold') {
     const made = state.creations.find((x) => x.id === String(args.creation));
     if (!made) return { ok: false, error: 'that is not standing there any more' };
@@ -535,9 +691,18 @@ export function startAction(ctx: ActionContext, id: string, args: Record<string,
     return { ok: true, action };
   }
 
-  // place-bound actions
-  if (spec.places.length && (!here || !spec.places.includes(here))) {
+  // place-bound actions, except sleeping in a shelter he built himself
+  const shelterSleep = id === 'sleep' && Boolean(args.creation);
+  if (spec.places.length && (!here || !spec.places.includes(here)) && !shelterSleep) {
     return { ok: false, error: `you cannot ${spec.label} here` };
+  }
+  if (shelterSleep) {
+    const made = state.creations.find((x) => x.id === String(args.creation));
+    if (!made || made.kind !== 'shelter' || made.condition <= 0.3) {
+      return { ok: false, error: 'there is no shelter here to sleep in' };
+    }
+    const d = Math.hypot(made.tile.x + 0.5 - c.pos.x, made.tile.y + 0.5 - c.pos.y);
+    if (d > cfg.offerings.senseRadiusTiles + 1.4) return { ok: false, error: 'that shelter is too far away to sleep in' };
   }
   if (id === 'stargaze' && !isNight(state)) return { ok: false, error: 'it is not night' };
   if (id === 'eat') {
@@ -634,6 +799,72 @@ export function completeAction(ctx: ActionContext): { id: string; args: Record<s
       }
       break;
     }
+    case 'use': {
+      const made = state.creations.find((x) => x.id === String(action.args.creation));
+      if (!made) break;
+      if (made.condition <= 0) {
+        addEvent(state, 'creation', `"${made.name}" is lying on its side; there is nothing to use`, 0.3);
+        break;
+      }
+      made.used += 1;
+      switch (made.kind) {
+        case 'light':
+          applyNeedDelta(state, { unease: -0.12 });
+          applyMoodDelta(state, { valence: 0.05 });
+          addEvent(state, 'creation', `stands under the light he hung at "${made.name}"`, 0.3);
+          break;
+        case 'shelter':
+          applyNeedDelta(state, { unease: -0.18, fatigue: -0.05 });
+          applyMoodDelta(state, { valence: 0.07 });
+          addEvent(state, 'creation', `sits inside "${made.name}", out of the weather`, 0.35);
+          break;
+        case 'seat':
+          applyNeedDelta(state, { unease: -0.2, fatigue: -0.06 });
+          applyMoodDelta(state, { valence: 0.1 });
+          addEvent(state, 'creation', `sits on "${made.name}" and lets the street go past`, 0.3);
+          break;
+        case 'sign': {
+          const words = creationPreview(cfg, made.file, 90);
+          applyNeedDelta(state, { curiosity: -0.16 });
+          addEvent(
+            state,
+            'creation',
+            words
+              ? `reads "${made.name}", which he wrote: "${words}"`
+              : `reads "${made.name}", which he painted and left blank`,
+            0.35,
+          );
+          break;
+        }
+        case 'garden': {
+          const stage = creationStage(state, made);
+          if (stage >= 2 && made.condition > 0.35) {
+            c.inventory.food += 1;
+            applyNeedDelta(state, { hunger: -0.16, curiosity: -0.1 });
+            addEvent(state, 'food', `picks something out of the garden he planted at "${made.name}"`, 0.5);
+          } else {
+            applyNeedDelta(state, { curiosity: -0.08 });
+            addEvent(state, 'creation', `checks the garden he planted at "${made.name}"; it is not ready`, 0.2);
+          }
+          break;
+        }
+        default:
+          applyMoodDelta(state, { valence: 0.06 });
+          addEvent(state, 'creation', `looks at "${made.name}", which he made`, 0.25);
+      }
+      break;
+    }
+    case 'mend': {
+      const made = state.creations.find((x) => x.id === String(action.args.creation));
+      if (made) {
+        made.condition = 1;
+        made.mendedDay = state.clock.day;
+        applyMoodDelta(state, { valence: -0.02 });
+        applyNeedDelta(state, { fatigue: 0.03 });
+        addEvent(state, 'creation', `mends "${made.name}" until it holds again`, 0.45);
+      }
+      break;
+    }
     case 'leave_mark': {
       // whatever he scratched goes into the town, and the town keeps it
       const text =
@@ -717,9 +948,17 @@ export function completeAction(ctx: ActionContext): { id: string; args: Record<s
     }
     case 'sleep': {
       c.asleep = false;
-      applyNeedDelta(state, { fatigue: -0.85 });
+      const shelter = state.creations.find(
+        (x) => x.id === String(action.args.creation) && x.kind === 'shelter',
+      );
+      applyNeedDelta(state, { fatigue: shelter ? -0.78 : -0.85 });
       applyMoodDelta(state, { valence: 0.05 });
-      addEvent(state, 'sleep', 'wakes up slowly and does not know what day it is', 0.5);
+      addEvent(
+        state,
+        'sleep',
+        shelter ? `wakes up under "${shelter.name}", which he built himself` : 'wakes up slowly and does not know what day it is',
+        0.5,
+      );
       break;
     }
     case 'browse': {

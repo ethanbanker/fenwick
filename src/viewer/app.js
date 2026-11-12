@@ -553,25 +553,108 @@
     bctx.fillRect(sx - 3, sy - 3, 4, 1);
   }
 
-  /** Something he made: a small board on legs, standing in the street. */
-  function drawCreation(ms) {
+  /** Something he made: a small thing standing in the street, of whatever kind it is. */
+  function drawCreation(ms, dark = 0) {
     const c = project(ms.x + 0.5, ms.y + 0.5);
     const sx = Math.round(c.sx);
     const sy = Math.round(c.sy);
+    const cond = typeof ms.condition === 'number' ? ms.condition : 1;
+    const kind = ms.kind || 'ornament';
+    const stage = ms.stage || 0;
     bctx.fillStyle = 'rgba(0,0,0,0.22)';
     bctx.beginPath();
     bctx.ellipse(sx, sy + 1, 6, 2.4, 0, 0, Math.PI * 2);
     bctx.fill();
-    bctx.fillStyle = '#6b5b46';
-    bctx.fillRect(sx - 3, sy - 5, 1, 5);
-    bctx.fillRect(sx + 2, sy - 5, 1, 5);
-    bctx.fillStyle = '#e6d9bf';
-    bctx.fillRect(sx - 5, sy - 11, 10, 6);
-    bctx.fillStyle = '#c2ae8c';
-    bctx.fillRect(sx - 5, sy - 11, 10, 1);
-    bctx.fillStyle = 'rgba(74,63,48,0.8)';
-    bctx.fillRect(sx - 3, sy - 9, 6, 1);
-    bctx.fillRect(sx - 3, sy - 7, 4, 1);
+
+    // it has come apart where it stood and is not a place any more
+    if (cond <= 0) {
+      bctx.fillStyle = '#5c4c3a';
+      bctx.fillRect(sx - 5, sy - 3, 4, 2);
+      bctx.fillRect(sx + 1, sy - 2, 4, 2);
+      bctx.fillStyle = '#3d3529';
+      bctx.fillRect(sx - 2, sy - 5, 3, 2);
+      bctx.fillStyle = 'rgba(230,217,191,0.45)';
+      bctx.fillRect(sx + 2, sy - 6, 3, 1);
+      return;
+    }
+
+    if (kind === 'light') {
+      if (dark > 0.15) {
+        const g = bctx.createRadialGradient(sx, sy - 4, 1, sx, sy - 4, 16);
+        g.addColorStop(0, `rgba(255,214,150,${(0.34 * dark).toFixed(3)})`);
+        g.addColorStop(1, 'rgba(255,214,150,0)');
+        bctx.fillStyle = g;
+        bctx.beginPath();
+        bctx.ellipse(sx, sy - 2, 16, 9, 0, 0, Math.PI * 2);
+        bctx.fill();
+      }
+      bctx.fillStyle = '#3a3d44';
+      bctx.fillRect(sx - 1, sy - 10, 2, 10);
+      bctx.fillStyle = '#ffd696';
+      bctx.fillRect(sx - 3, sy - 14, 6, 4);
+      bctx.fillStyle = 'rgba(255,255,255,0.7)';
+      bctx.fillRect(sx - 2, sy - 13, 2, 1);
+    } else if (kind === 'seat') {
+      bctx.fillStyle = '#6b5b46';
+      bctx.fillRect(sx - 6, sy - 5, 12, 2);
+      bctx.fillRect(sx - 5, sy - 3, 1, 3);
+      bctx.fillRect(sx + 4, sy - 3, 1, 3);
+      bctx.fillStyle = '#8a7357';
+      bctx.fillRect(sx - 6, sy - 7, 12, 1);
+    } else if (kind === 'shelter') {
+      bctx.fillStyle = '#5b5142';
+      bctx.fillRect(sx - 7, sy - 4, 14, 4);
+      bctx.fillStyle = '#3d3529';
+      bctx.fillRect(sx - 5, sy - 8, 10, 4);
+      bctx.fillStyle = 'rgba(20,16,12,0.85)';
+      bctx.fillRect(sx - 3, sy - 7, 6, 3);
+      bctx.fillStyle = '#7d6e58';
+      bctx.beginPath();
+      bctx.moveTo(sx - 8, sy - 8);
+      bctx.lineTo(sx, sy - 14);
+      bctx.lineTo(sx + 8, sy - 8);
+      bctx.closePath();
+      bctx.fill();
+    } else if (kind === 'sign') {
+      bctx.fillStyle = '#6b5b46';
+      bctx.fillRect(sx - 1, sy - 6, 2, 6);
+      bctx.fillStyle = '#e6d9bf';
+      bctx.fillRect(sx - 6, sy - 12, 12, 6);
+      bctx.fillStyle = 'rgba(74,63,48,0.8)';
+      bctx.fillRect(sx - 4, sy - 10, 8, 1);
+      bctx.fillRect(sx - 4, sy - 8, 5, 1);
+    } else if (kind === 'garden') {
+      bctx.fillStyle = '#3f3a2a';
+      bctx.fillRect(sx - 7, sy - 2, 14, 3);
+      if (stage <= 0) {
+        bctx.fillStyle = '#6f8f4a';
+        bctx.fillRect(sx - 5, sy - 4, 2, 2);
+        bctx.fillRect(sx - 1, sy - 5, 2, 3);
+        bctx.fillRect(sx + 3, sy - 4, 2, 2);
+      } else {
+        bctx.fillStyle = stage >= 2 ? '#5f8a3f' : '#6f8f4a';
+        bctx.fillRect(sx - 6, sy - 8, 12, 6);
+        bctx.fillStyle = '#7fae55';
+        bctx.fillRect(sx - 4, sy - 11, 8, 4);
+        if (stage >= 2) {
+          bctx.fillStyle = '#d4553f';
+          bctx.fillRect(sx - 5, sy - 7, 2, 2);
+          bctx.fillRect(sx + 1, sy - 10, 2, 2);
+          bctx.fillRect(sx + 3, sy - 5, 2, 2);
+        }
+      }
+    } else {
+      bctx.fillStyle = '#6b5b46';
+      bctx.fillRect(sx - 3, sy - 5, 1, 5);
+      bctx.fillRect(sx + 2, sy - 5, 1, 5);
+      bctx.fillStyle = '#e6d9bf';
+      bctx.fillRect(sx - 5, sy - 11, 10, 6);
+      bctx.fillStyle = '#c2ae8c';
+      bctx.fillRect(sx - 5, sy - 11, 10, 1);
+      bctx.fillStyle = 'rgba(74,63,48,0.8)';
+      bctx.fillRect(sx - 3, sy - 9, 6, 1);
+      bctx.fillRect(sx - 3, sy - 7, 4, 1);
+    }
   }
 
   /** What he calls the thing, over the top of the map. */
@@ -585,7 +668,9 @@
     for (const ms of recent) {
       const c = project(ms.x + 0.5, ms.y + 0.5);
       if (c.sx < -60 || c.sx > baseW + 60 || c.sy < -40 || c.sy > baseH + 40) continue;
-      const label = String(ms.name || 'something').slice(0, 18);
+      const worn = typeof ms.condition === 'number' ? ms.condition : 1;
+      const note = worn <= 0 ? ' \u00b7 fallen' : worn < 0.35 ? ' \u00b7 worn' : '';
+      const label = `${String(ms.name || 'something').slice(0, 16)}${note}`;
       const w = Math.ceil(bctx.measureText(label).width) + 8;
       const x = Math.round(c.sx - w / 2);
       const y = Math.round(c.sy) - 20;
@@ -1013,7 +1098,7 @@
     }
 
     for (const made of snap ? snap.creations || [] : []) {
-      drawables.push({ d: made.x + made.y + 0.5, fn: () => drawCreation(made) });
+      drawables.push({ d: made.x + made.y + 0.5, fn: () => drawCreation(made, dark) });
     }
 
     drawables.push({

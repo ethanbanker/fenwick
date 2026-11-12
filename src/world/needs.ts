@@ -1,5 +1,6 @@
 import type { Config } from '../config.ts';
 import { type WorldState, type Needs, type Mood, hoursElapsed, hourOfDay, isNight } from './state.ts';
+import { nearLight, nearShelter } from './creations.ts';
 import { clamp } from '../util/text.ts';
 
 /** How fast each need fills, per in-world hour. */
@@ -54,12 +55,18 @@ export function advanceNeeds(cfg: Config, state: WorldState, dtSeconds: number):
   c.needs.curiosity = clamp(c.needs.curiosity + DRIFT.curiosity * hours * (asleep ? 0 : 1), 0, 1);
 
   const atHome = c.atPlace === 'nest';
-  const exposed = !atHome && (state.weather.kind === 'rain' || state.weather.kind === 'fog') && !asleep;
-  c.needs.unease = clamp(
-    c.needs.unease + (DRIFT.unease * hours * (exposed ? 2.4 : 0.6) - (atHome ? 0.3 * hours : 0)),
-    0,
-    1,
-  );
+  // what he built changes how the street feels: a roof he put up keeps the
+  // weather off the same way the nest does, only less so, and a lamp he hung
+  // takes the edge off the dark.
+  const shelter = atHome ? null : nearShelter(state, c.pos);
+  const lit = isNight(state) ? nearLight(state, c.pos) : null;
+  const exposed =
+    !atHome && !shelter && (state.weather.kind === 'rain' || state.weather.kind === 'fog') && !asleep;
+  let unease = DRIFT.unease * hours * (exposed ? 2.4 : 0.6);
+  if (atHome) unease -= 0.3 * hours;
+  else if (shelter) unease -= 0.18 * hours;
+  if (lit) unease *= 0.55;
+  c.needs.unease = clamp(c.needs.unease + unease, 0, 1);
 
   updateMood(cfg, state, dtSeconds);
 }
@@ -90,6 +97,8 @@ export function moodTarget(state: WorldState): Mood {
   if (isNight(state)) valence += 0.07;
   if (state.creature.atPlace === 'nest') valence += 0.08;
   if (state.creature.atPlace === 'ruins') valence -= 0.04;
+  if (isNight(state) && nearLight(state, state.creature.pos)) valence += 0.05;
+  if (nearShelter(state, state.creature.pos)) valence += 0.04;
   return { valence: clamp(valence, -1, 1), energy: state.creature.mood.energy };
 }
 

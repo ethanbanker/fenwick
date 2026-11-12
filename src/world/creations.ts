@@ -1,20 +1,25 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Config } from '../config.ts';
-import { addEvent, type Creation, type WorldState } from './state.ts';
+import type { Point } from '../util/geo.ts';
+import { inferKind, readKindHints, type CreationKind } from '../util/creation-kinds.ts';
+import { addEvent, hoursElapsed, type Creation, type WorldState } from './state.ts';
 
 /**
  * What he has made, standing where he made it.
  *
  * A file in data/workshop is not a thing in his world until the town notices it.
- * This walks the workshop, registers anything new at the tile he was standing on,
- * and gives the brain something it can perceive and walk over to look at.
+ * This walks the workshop, registers anything new at the tile he was standing
+ * on, gives it the purpose he declared (or guesses it from the name), and lets
+ * it grow or come apart while he gets on with his life.
  */
 
 const SKIP = new Set(['node_modules', '.git']);
 const NOT_A_THING = /\.(tmp|part|lock)$/i;
 /** a file that is still being written is not finished enough to stand in a town */
 const SETTLE_MS = 1500;
+/** about ten in-world days of being ignored before it is lying on its side */
+const DECAY_PER_HOUR = 1 / (10 * 24);
 
 function walk(root: string, rel = '', out: string[] = [], depth = 0): string[] {
   let entries: fs.Dirent[] = [];
@@ -75,6 +80,13 @@ export function creationExists(cfg: Config, c: Creation): boolean {
   }
 }
 
+/** A garden he planted gets taller while he leaves it alone. */
+export function creationStage(state: WorldState, made: Creation): number {
+  if (made.kind !== 'garden') return 0;
+  const age = Math.max(0, state.clock.day - made.day);
+  return Math.min(2, Math.floor(age / 2));
+}
+
 /**
  * Register anything he has made since the last look. New files appear at his
  * feet, which is honest: he made them where he was standing. Returns only the
@@ -85,6 +97,7 @@ export function syncCreations(cfg: Config, state: WorldState): Creation[] {
   const root = workshopRoot(cfg);
   const files = walk(root);
   const known = new Set(state.creations.map((c) => c.file));
+  const hints = readKindHints(cfg.dataDir);
   const fresh: Creation[] = [];
   const tile = { x: Math.floor(state.creature.pos.x), y: Math.floor(state.creature.pos.y) };
 
@@ -97,14 +110,20 @@ export function syncCreations(cfg: Config, state: WorldState): Creation[] {
       continue;
     }
     if (Date.now() - mtime < SETTLE_MS) continue;
+    const name = creationName(file);
+    const kind = hints[file] ?? inferKind(name, creationPreview(cfg, file, 200));
     const creation: Creation = {
       id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 4)}`,
       file,
-      name: creationName(file),
+      name,
       tile,
       day: state.clock.day,
       at: Date.now(),
       lookedAt: null,
+      kind,
+      condition: 1,
+      used: 0,
+      mendedDay: null,
     };
     state.creations.push(creation);
     fresh.push(creation);
@@ -117,4 +136,66 @@ export function syncCreations(cfg: Config, state: WorldState): Creation[] {
   if (state.creations.length > 60) state.creations = state.creations.slice(-60);
 
   return fresh;
+}
+
+/** The workshop writes the purpose down; the town picks it up here. */
+export function applyKindHints(cfg: Config, state: WorldState): void {
+  const hints = readKindHints(cfg.dataDir);
+  for (const made of state.creations) {
+    const hinted = hints[made.file];
+    if (hinted && hinted !== made.kind) made.kind = hinted;
+  }
+}
+
+/** Things left alone come apart. A garden does it more slowly than a lamp. */
+export function decayCreations(cfg: Config, state: WorldState, dtSeconds: number): void {
+  const hours = hoursElapsed(cfg, dtSeconds);
+  if (hours <= 0) return;
+  for (const made of state.creations) {
+    if (made.condition <= 0) continue;
+    const rate = made.kind === 'garden' ? DECAY_PER_HOUR * 0.6 : DECAY_PER_HOUR;
+    const before = made.condition;
+    made.condition = Math.max(0, made.condition - rate * hours);
+    if (before > 0 && made.condition === 0) {
+      addEvent(
+        state,
+        'creation',
+        made.kind === 'light'
+          ? `the lamp he hung at "${made.name}" has gone out for good`
+          : `"${made.name}", which he made on day ${made.day}, has come apart where it stood`,
+        0.55,
+      );
+    }
+  }
+}
+
+/** The closest thing of a kind still standing, within reach of where he is. */
+export function fixtureNear(
+  state: WorldState,
+  pos: Point,
+  kind: CreationKind,
+  radius: number,
+  minCondition = 0.15,
+): Creation | null {
+  let best: Creation | null = null;
+  let bestD = radius;
+  for (const made of state.creations) {
+    if (made.kind !== kind || made.condition <= minCondition) continue;
+    const d = Math.hypot(made.tile.x + 0.5 - pos.x, made.tile.y + 0.5 - pos.y);
+    if (d <= bestD) {
+      bestD = d;
+      best = made;
+    }
+  }
+  return best;
+}
+
+/** A lamp he made, after dark, close enough to change how the street feels. */
+export function nearLight(state: WorldState, pos: Point, radius = 2.6): Creation | null {
+  return fixtureNear(state, pos, 'light', radius);
+}
+
+/** Somewhere he built to get out of the weather. */
+export function nearShelter(state: WorldState, pos: Point, radius = 1.8): Creation | null {
+  return fixtureNear(state, pos, 'shelter', radius);
 }

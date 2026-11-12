@@ -17,7 +17,14 @@ import {
 } from './state.ts';
 import { advanceNeeds } from './needs.ts';
 import { availableActions, completeAction, placeOf, startAction, type ActionContext } from './actions.ts';
-import { creationPreview, syncCreations } from './creations.ts';
+import {
+  applyKindHints,
+  creationPreview,
+  creationStage,
+  decayCreations,
+  syncCreations,
+} from './creations.ts';
+import { conditionWord, inferKind, isCreationKind, kindLabel } from '../util/creation-kinds.ts';
 import { renderPage, type PageKind } from './pages.ts';
 import { adminAuthorized, adminStatus, adminToken, updateKeys } from './admin.ts';
 import { readThoughts } from '../brain/thoughts.ts';
@@ -57,6 +64,13 @@ state.lastFinished = state.lastFinished ?? null;
 // saves written before marks existed simply have none
 state.marks = Array.isArray(state.marks) ? state.marks : [];
 state.creations = Array.isArray(state.creations) ? state.creations : [];
+// saves written before things had a purpose simply get one from their name
+for (const made of state.creations) {
+  if (!isCreationKind(made.kind)) made.kind = inferKind(made.name, creationPreview(cfg, made.file, 200));
+  if (typeof made.condition !== 'number') made.condition = 1;
+  if (typeof made.used !== 'number') made.used = 0;
+  if (typeof made.mendedDay !== 'number') made.mendedDay = null;
+}
 
 const startedAt = Date.now();
 let lastTick = Date.now();
@@ -162,8 +176,11 @@ function tick(): void {
   moveCreature(dt);
   updateWeather(now);
   senseOfferings();
-  // whatever he built in the workshop becomes a thing standing in the town
+  // whatever he built in the workshop becomes a thing standing in the town,
+  // with the purpose he gave it, coming apart slowly if he stops touching it
   syncCreations(cfg, state);
+  applyKindHints(cfg, state);
+  decayCreations(cfg, state, dt);
 
   const creaturePlace = placeOf(town, state.creature.pos);
   state.creature.atPlace = creaturePlace;
@@ -234,7 +251,17 @@ function snapshot(): unknown {
     },
     offerings: offeringsForWire(),
     marks: state.marks.slice(-24).map((m) => ({ id: m.id, x: m.tile.x, y: m.tile.y, text: m.text, day: m.day })),
-    creations: state.creations.slice(-24).map((c) => ({ id: c.id, x: c.tile.x, y: c.tile.y, name: c.name, file: c.file, day: c.day })),
+    creations: state.creations.slice(-24).map((c) => ({
+      id: c.id,
+      x: c.tile.x,
+      y: c.tile.y,
+      name: c.name,
+      file: c.file,
+      day: c.day,
+      kind: c.kind,
+      condition: Math.round(c.condition * 100) / 100,
+      stage: creationStage(state, c),
+    })),
     events: state.events.slice(-7).map((e) => ({ id: e.id, text: e.text, kind: e.kind, day: e.day })),
     keptTotal: state.keptTotal,
   };
@@ -322,13 +349,23 @@ function observation(sinceEventId: number): unknown {
     creations: state.creations
       .slice(-12)
       .reverse()
-      .map((made) => ({
-        name: made.name,
-        file: made.file,
-        day: made.day,
-        distance: Math.round(Math.hypot(made.tile.x - c.pos.x, made.tile.y - c.pos.y) * 10) / 10,
-        preview: creationPreview(cfg, made.file, 120),
-      })),
+      .map((made) => {
+        const stage = creationStage(state, made);
+        const kind =
+          made.kind === 'garden'
+            ? `${kindLabel(made.kind)} (${['just planted', 'growing', 'ripe'][stage]})`
+            : kindLabel(made.kind);
+        return {
+          name: made.name,
+          file: made.file,
+          kind,
+          day: made.day,
+          distance: Math.round(Math.hypot(made.tile.x - c.pos.x, made.tile.y - c.pos.y) * 10) / 10,
+          condition: conditionWord(made.condition),
+          stage,
+          preview: creationPreview(cfg, made.file, 120),
+        };
+      }),
     pendingInspection: state.offerings
       .filter((o) => o.state === 'found')
       .map((o) => ({

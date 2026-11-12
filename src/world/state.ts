@@ -1,6 +1,7 @@
 import type { Point } from '../util/geo.ts';
 import { buildTown, type Town } from './map.ts';
 import type { Config } from '../config.ts';
+import type { CreationKind } from '../util/creation-kinds.ts';
 
 export type NeedKey = 'hunger' | 'fatigue' | 'curiosity' | 'unease';
 
@@ -50,6 +51,14 @@ export type Creation = {
   at: number;
   /** the last time he stood in front of it */
   lookedAt: number | null;
+  /** what it does for him: light, shelter, seat, sign, garden, or nothing but looking */
+  kind: CreationKind;
+  /** 1 as he left it, 0 lying on its side */
+  condition: number;
+  /** how many times he has used it since he made it */
+  used: number;
+  /** the day he last put it back together */
+  mendedDay: number | null;
 };
 
 
